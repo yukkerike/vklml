@@ -176,7 +176,7 @@ vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
 longpoll = VkLongPoll(vk_session, wait=60, mode=2, preload_messages=True)
 
-cwd = os.getcwd()
+cwd = os.path.dirname(os.path.abspath(__file__))
 
 if os.path.exists(os.path.join(cwd, "messages.db-journal")):
         os.remove(os.path.join(cwd, "messages.db-journal"))
