@@ -27,8 +27,8 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
         date = time.ctime(timestamp)
         if not os.path.exists(os.path.join(cwd, "mesAct")):
                 os.makedirs(os.path.join(cwd, "mesAct"))
-        if not os.path.exists(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y")+".html")):
-                f = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y")+".html"),'w')
+        if not os.path.exists(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html")):
+                f = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
                 f.write("""<table cellspacing="0" border="1" width="100%" frame="hsides" white-space="pre-wrap"></table>
                 <script>
                 function spoiler(elem_id) {
@@ -45,10 +45,10 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                 }
                 </script>""")
                 f.close()
-        messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y")+".html"),'r')
+        messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'r')
         messagesDump = messagesActivities.read()
         messagesActivities.close()
-        messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y")+".html"),'w')
+        messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
         fetch = cursor.fetchone()
         if not fetch[1] is None:
@@ -157,7 +157,7 @@ def getAttachments(message_id):
                 if type == 'photo':
                         urls['urls'].append(attachments[i][type]['sizes'][len(attachments[i][type]['sizes'])-1]['url'])
                 elif type == 'sticker':
-                        return "sticker"
+                        return "sticker", None
                 elif type == 'video':
                         urls['urls'].append(attachments[i][type]['photo_320']+","+str(attachments[i][type]['owner_id'])+"_"+str(attachments[i][type]['id'])+"_"+str(attachments[i][type]['access_key']))
                 elif type == 'audio_message':
