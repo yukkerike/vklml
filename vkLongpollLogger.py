@@ -339,7 +339,7 @@ for event in longpoll.listen():
                                         messageFlags.append(i)
                         if (131072 in messageFlags or 128 in messageFlags):
                                 activityReport(event.message_id, int(time.time()))
-        except ZeroDivisionError as e:
+        except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                 f.write(str(e)+"\n")
                 f.close()
