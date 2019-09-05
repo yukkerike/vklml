@@ -62,7 +62,8 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                 fwd = fetch[8]
         if peer_name != "":
                 row="<tr><td>"+str(message_id)+"</td><td>"+peer_name+"</td><td>"
-        row="<tr><td>"+str(message_id)+"</td><td>"+user_name+"</td><td>"
+        
+        row="<tr><td>"+str(message_id)+"</td><td><a href='https://vk.com/id"+str(fetch[2])+"'>"+user_name+"</a></td><td>"
         if isEdited:
                 if oldMessage != "":
                         row+="<b>Старое </b><br />"+oldMessage+"</td><td>"
