@@ -133,7 +133,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                 
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+time.time()+"\n")
+                f.write(str(e)+" "+row+" "+time.time()+"\n")
                 f.close()
         finally:
                 row+="</tr>"
@@ -144,7 +144,10 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                         attachments = json.dumps(attachments)
                 else:
                         attachments = None
-                cursor.execute("""UPDATE messages SET message = ?, attachments = ? WHERE message_id = ?""", (message, attachments, message_id,))
+                if isEdited:
+                        cursor.execute("""UPDATE messages SET message = ?, attachments = ? WHERE message_id = ?""", (message, attachments, message_id,))
+                        conn.commit()
+
 
 def getAttachments(message_id):
         attachments = vk_session.method("messages.getById",{"message_ids":event.message_id})['items'][0]
@@ -185,9 +188,6 @@ longpoll = VkLongPoll(vk_session, wait=60, mode=2, preload_messages=True)
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
-if os.path.exists(os.path.join(cwd, "messages.db-journal")):
-        os.remove(os.path.join(cwd, "messages.db-journal"))
-
 if not os.path.exists(os.path.join(cwd, "messages.db")):
         conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
         cursor = conn.cursor()
@@ -215,6 +215,12 @@ if not os.path.exists(os.path.join(cwd, "messages.db")):
                 "user_id"	INTEGER NOT NULL UNIQUE,
                 "user_name"	TEXT NOT NULL
         )
+        """)
+        cursor.execute("""
+        PRAGMA journal_mode = 'MEMORY'
+        """)
+        cursor.execute("""
+        PRAGMA synchronous = '0'
         """)
         conn.commit()
 else:
@@ -348,5 +354,5 @@ for event in longpoll.listen():
                                 activityReport(event.message_id, int(time.time()))
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+time.time()+"\n")
+                f.write(str(e)+" "+str(message_id)+" "+time.time()+"\n")
                 f.close()
