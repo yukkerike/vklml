@@ -22,7 +22,8 @@ def bgWatcher():
 
 def activityReport(message_id, timestamp, isEdited=False, attachments="", message=""):
         try:
-                peer_name = user_name = oldMessage = oldAttachments = date = fwd = row = ""
+                peer_name = user_name = oldMessage = oldAttachments = date = fwd = ""
+                row = "<tr><td>"
                 if attachments is None:
                         attachments=""
                 date = time.ctime(timestamp)
@@ -30,21 +31,32 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                         os.makedirs(os.path.join(cwd, "mesAct"))
                 if not os.path.exists(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html")):
                         f = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
-                        f.write("""<table cellspacing="0" border="1" width="100%" frame="hsides" white-space="pre-wrap"></table>
-                        <script>
+                        f.write("""
+<html>
+        <head>
+                <meta charset="utf-8">
+                <script>
                         function spoiler(elem_id) {
-                        for (i = 1; i < document.getElementById(elem_id).children.length; i++) {
-                                let data = document.getElementById(elem_id).children[i].getAttribute('data-src');
-                                if (document.getElementById(elem_id).children[i].hidden == !0) {
-                                document.getElementById(elem_id).children[i].removeAttribute("hidden");
-                                if (data !== null) document.getElementById(elem_id).children[i].src = document.getElementById(elem_id).children[i].getAttribute('data-src')
-                                } else {
-                                if (data !== null) document.getElementById(elem_id).children[i].removeAttribute("src");
-                                document.getElementById(elem_id).children[i].hidden = !0
+                                for (i = 1; i < document.getElementById(elem_id).children.length; i++) {
+                                        let data = document.getElementById(elem_id).children[i].getAttribute('data-src');
+                                        if (document.getElementById(elem_id).children[i].hidden == !0) {
+                                                document.getElementById(elem_id).children[i].removeAttribute("hidden");
+                                                if (data !== null) 
+                                                        document.getElementById(elem_id).children[i].src = document.getElementById(elem_id).children[i].getAttribute('data-src')
+                                        } else {
+                                                if (data !== null) 
+                                                        document.getElementById(elem_id).children[i].removeAttribute("src");
+                                                document.getElementById(elem_id).children[i].hidden = !0
+                                        }
                                 }
                         }
-                        }
-                        </script>""")
+                </script>
+        </head>
+        <body>
+                <table cellspacing="0" border="1" width="100%" frame="hsides" white-space="pre-wrap">
+                </table>
+        </body>
+</html>""")
                         f.close()
                 messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'r')
                 messagesDump = messagesActivities.read()
@@ -61,18 +73,29 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                         oldAttachments = fetch[6]
                 if not fetch[8] is None:
                         fwd = fetch[8]
+                row+="""
+                {}</td><td>
+                """.format(str(message_id))
                 if peer_name != "":
-                        row="<tr><td>"+str(message_id)+"</td><td>"+peer_name+"</td><td>"
-                
-                row="<tr><td>"+str(message_id)+"</td><td><a href='https://vk.com/id"+str(fetch[2])+"'>"+user_name+"</a></td><td>"
+                        row+="""{}</td><td>""".format(peer_name)
+                row+="""
+                <a href='https://vk.com/id{}'>{}</a>
+                </td><td>""".format(str(fetch[2]),user_name)
                 if isEdited:
                         if oldMessage != "":
-                                row+="<b>Старое </b><br />"+oldMessage+"</td><td>"
+                                row+="""
+                                <b>Старое </b><br />
+                                {}</td><td>""".format(oldMessage)
                         if message != "":
-                                row+="<b>Новое </b><br />"+message+"</td><td>"
+                                row+="""<b>Новое </b><br />
+                                {}</td><td>""".format(message)
                         if oldAttachments != "":
                                 oldAttachments=json.loads(oldAttachments)
-                                row+="""<b>Старое <br /></b><div id="{0}_{1}_old" style="display: table;"><button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>""".format(message_id,timestamp)
+                                row+="""
+                                <b>Старое </b><br />
+                                <div id="{0}_{1}_old" style="display: table;">
+                                        <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>
+                                """.format(message_id,timestamp)
                                 for i in range(oldAttachments['count']):
                                         urlSplit = oldAttachments['urls'][i].split(".")
                                         if len(urlSplit[3].split(",")) == 1:
@@ -83,13 +106,20 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                         row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
-                                                row+="""<a href="{}" hidden>Видео<img src="{}" loading="lazy"></img></a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
+                                                row+="""
+                                                <a href="{}" hidden>Видео
+                                                        <img src="{}" loading="lazy"></img>
+                                                </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
                                                 row+="""<a href="{}" hidden>Документ</a>""".format(oldAttachments['urls'][i])
                                 row+="</div></td><td>"
                         if attachments != "":
                                 attachments=json.loads(attachments)
-                                row+="""<b>Новое <br /></b><div id="{0}_{1}_new" style="display: table;"><button id="{0}_{1}_new" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>""".format(message_id,timestamp)
+                                row+="""
+                                <b>Новое </b><br />
+                                <div id="{0}_{1}_new" style="display: table;">
+                                        <button id="{0}_{1}_new" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>
+                                """.format(message_id,timestamp)
                                 for i in range(attachments['count']):
                                         urlSplit = attachments['urls'][i].split(".")
                                         if len(urlSplit[3].split(",")) == 1:
@@ -100,19 +130,28 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                         row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
-                                                row+="""<a href="{}" hidden>Видео<img src="{}" loading="lazy"></img></a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
+                                                row+="""
+                                                        <a href="{}" hidden>Видео
+                                                        <img src="{}" loading="lazy"></img>
+                                                </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
                                                 row+="""<a href="{}" hidden>Документ</a>""".format(attachments['urls'][i])
-                                row+="</div></td><td>"
+                                row+="""</div></td><td>"""
                         row+=date+"</td>"
                         if fwd != "":
                                 row+="<td>"+"<br />".join(fwd.split("\n"))
                 else:
                         if oldMessage != "":
-                                row+="<b>Удалено <br /></b>"+oldMessage+"</td><td>"
+                                row+="""
+                                <b>Удалено </b><br />
+                                {}</td><td>""".format(oldMessage)
                         if oldAttachments != "":
                                 oldAttachments=json.loads(oldAttachments)
-                                row+="""<b>Удалено <br /></b><div id="{0}_{1}_old" style="display: table;"><button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>""".format(message_id,timestamp)
+                                row+="""
+                                <b>Удалено </b><br />
+                                <div id="{0}_{1}_old" style="display: table;">
+                                        <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>
+                                """.format(message_id,timestamp)
                                 for i in range(oldAttachments['count']):
                                         urlSplit = oldAttachments['urls'][i].split(".")
                                         if len(urlSplit[3].split(",")) == 1:
@@ -123,7 +162,10 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                         row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
-                                                row+="""<a href="{}" hidden>Видео<img src="{}" loading="lazy"></img></a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
+                                                row+="""
+                                                <a href="{}" hidden>Видео
+                                                        <img src="{}" loading="lazy"></img>
+                                                </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
                                                 row+="""<a href="{}" hidden>Документ</a>""".format(oldAttachments['urls'][i])
                                 row+="</div></td><td>"
@@ -137,7 +179,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                 f.close()
         finally:
                 row+="</tr>"
-                messagesDump = messagesDump[:85]+row+messagesDump[85:]
+                messagesDump = messagesDump[:1443]+row+messagesDump[1443:]
                 messagesActivities.write(messagesDump)
                 messagesActivities.close()
                 if attachments != "":
