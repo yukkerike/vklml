@@ -102,7 +102,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                 urlSplit = urlSplit[3]
                                                 if urlSplit == "jpg":
                                                         row+="""<img data-src="{}" hidden></img>""".format(oldAttachments['urls'][i])
-                                                if urlSplit == "ogg":
+                                                if urlSplit == "mp3":
                                                         row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
@@ -126,7 +126,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                 urlSplit = urlSplit[3]
                                                 if urlSplit == "jpg":
                                                         row+="""<img data-src="{}" hidden></img>""".format(attachments['urls'][i])
-                                                if urlSplit == "ogg":
+                                                if urlSplit == "mp3":
                                                         row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
@@ -158,7 +158,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                 urlSplit = urlSplit[3]
                                                 if urlSplit == "jpg":
                                                         row+="""<img data-src="{}" hidden></img>""".format(oldAttachments['urls'][i])
-                                                if urlSplit == "ogg":
+                                                if urlSplit == "mp3":
                                                         row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
@@ -213,7 +213,7 @@ def getAttachments(message_id):
                 elif type == 'video':
                         urls['urls'].append(attachments[i][type]['photo_320']+","+str(attachments[i][type]['owner_id'])+"_"+str(attachments[i][type]['id'])+"_"+str(attachments[i][type]['access_key']))
                 elif type == 'audio_message':
-                        urls['urls'].append(attachments[i][type]['link_ogg'])
+                        urls['urls'].append(attachments[i][type]['link_mp3'])
                 elif type == 'fwd':
                         pass
                 else:
