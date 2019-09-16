@@ -6,8 +6,13 @@ import json
 import signal
 import threading
 import time
+import sys
 
 ACCESS_TOKEN = ""
+if len(sys.argv)>1 :
+        ACCESS_TOKEN = sys.argv[1]
+if ACCESS_TOKEN == "":
+        raise Exception("Не задан ACCESS_TOKEN")
 
 def interuppt_handler(signum, frame):
         conn.commit()
@@ -74,27 +79,29 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                 if not fetch[8] is None:
                         fwd = fetch[8]
                 row+="""
-                {}</td><td>
+                {}</td>
                 """.format(str(message_id))
                 if peer_name != "":
-                        row+="""{}</td><td>""".format(peer_name)
+                        row+="""<td>{}</td><td>""".format(peer_name)
+                else:
+                        row+="<td colspan='2'>"
                 row+="""
                 <a href='https://vk.com/id{}'>{}</a>
-                </td><td>""".format(str(fetch[2]),user_name)
+                </td>""".format(str(fetch[2]),user_name)
                 if isEdited:
+                        row+="<td>"
                         if oldMessage != "":
                                 row+="""
                                 <b>Старое </b><br />
-                                {}</td><td>""".format(oldMessage)
-                        if message != "":
-                                row+="""<b>Новое </b><br />
-                                {}</td><td>""".format(message)
+                                {}""".format(oldMessage)
                         if oldAttachments != "":
                                 oldAttachments=json.loads(oldAttachments)
+                                if oldMessage != "":
+                                        row+="<br />"
                                 row+="""
                                 <b>Старое </b><br />
                                 <div id="{0}_{1}_old" style="display: table;">
-                                        <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>
+                                        <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
                                 """.format(message_id,timestamp)
                                 for i in range(oldAttachments['count']):
                                         urlSplit = oldAttachments['urls'][i].split(".")
@@ -112,13 +119,28 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                 </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
                                                 row+="""<a href="{}" hidden>Документ</a>""".format(oldAttachments['urls'][i])
-                                row+="</div></td><td>"
+                                row+="</div>"
+                        if fwd != "":
+                                if oldMessage != "" or oldAttachments != "":
+                                        row+="<br />"
+                                row+="""
+                                <div id="{0}_{1}_old_fwd" style="display: table;">
+                                        <button id="{0}_{1}_old_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
+                                """.format(message_id,timestamp)
+                                row+="<br />".join(fwd.split("\n"))
+                                row+="</p></div>"
+                        row+="</td><td>"
+                        if message != "":
+                                row+="""<b>Новое </b><br />
+                                {}""".format(message)
                         if attachments != "":
                                 attachments=json.loads(attachments)
+                                if message != "":
+                                        row+="<br />"
                                 row+="""
                                 <b>Новое </b><br />
                                 <div id="{0}_{1}_new" style="display: table;">
-                                        <button id="{0}_{1}_new" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>
+                                        <button id="{0}_{1}_new" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
                                 """.format(message_id,timestamp)
                                 for i in range(attachments['count']):
                                         urlSplit = attachments['urls'][i].split(".")
@@ -136,21 +158,32 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                 </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
                                                 row+="""<a href="{}" hidden>Документ</a>""".format(attachments['urls'][i])
-                                row+="""</div></td><td>"""
-                        row+=date+"</td>"
+                                row+="</div>"
                         if fwd != "":
-                                row+="<td>"+"<br />".join(fwd.split("\n"))
+                                if message != "" or attachments != "":
+                                        row+="<br />"
+                                row+="""
+                                <div id="{0}_{1}_new_fwd" style="display: table;">
+                                        <button id="{0}_{1}_new_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
+                                """.format(message_id,timestamp)
+                                row+="<br />".join(fwd.split("\n"))
+                                row+="</p></div>"
+                        row+="</td><td>"
+                        row+=date+"</td>"
                 else:
+                        row+="<td colspan='2'>"
                         if oldMessage != "":
                                 row+="""
                                 <b>Удалено </b><br />
-                                {}</td><td>""".format(oldMessage)
+                                {}""".format(oldMessage)
                         if oldAttachments != "":
                                 oldAttachments=json.loads(oldAttachments)
+                                if oldMessage != "":
+                                        row+="<br />"
                                 row+="""
                                 <b>Удалено </b><br />
-                                <div id="{0}_{1}_old" style="display: table;">
-                                        <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Распахнуть</button>
+                                <div id="{0}_{1}_del" style="display: table;">
+                                        <button id="{0}_{1}_del" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
                                 """.format(message_id,timestamp)
                                 for i in range(oldAttachments['count']):
                                         urlSplit = oldAttachments['urls'][i].split(".")
@@ -168,11 +201,18 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                 </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
                                                 row+="""<a href="{}" hidden>Документ</a>""".format(oldAttachments['urls'][i])
-                                row+="</div></td><td>"
-                        row+=date+"</td>"
+                                row+="</div>"
                         if fwd != "":
-                                row+="<td>"+"<br />".join(fwd.split("\n"))
-                
+                                if oldMessage != "" or oldAttachments != "":
+                                        row+="<br />"
+                                row+="""
+                                <div id="{0}_{1}_del_fwd" style="display: table;">
+                                        <button id="{0}_{1}_del_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
+                                """.format(message_id,timestamp)
+                                row+="<br />".join(fwd.split("\n"))
+                                row+="</p></div>"
+                        row+="</td><td>"
+                        row+=date+"</td>"
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                 f.write(str(e)+" "+row+" "+time.time()+"\n")
@@ -257,12 +297,6 @@ if not os.path.exists(os.path.join(cwd, "messages.db")):
                 "user_id"	INTEGER NOT NULL UNIQUE,
                 "user_name"	TEXT NOT NULL
         )
-        """)
-        cursor.execute("""
-        PRAGMA journal_mode = 'MEMORY'
-        """)
-        cursor.execute("""
-        PRAGMA synchronous = '0'
         """)
         conn.commit()
 else:
