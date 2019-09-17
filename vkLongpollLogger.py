@@ -89,11 +89,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                 <a href='https://vk.com/id{}'>{}</a>
                 </td>""".format(str(fetch[2]),user_name)
                 if isEdited:
-                        row+="<td>"
+                        row+="<td><b>Старое </b><br />"
                         if oldMessage != "":
-                                row+="""
-                                <b>Старое </b><br />
-                                {}""".format(oldMessage)
+                                row+=oldMessage
                         if oldAttachments != "":
                                 oldAttachments=json.loads(oldAttachments)
                                 if oldMessage != "":
@@ -128,10 +126,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                 """.format(message_id,timestamp)
                                 row+="<br />".join(fwd.split("\n"))
                                 row+="</p></div>"
-                        row+="</td><td>"
+                        row+="</td><td><b>Новое </b><br />"
                         if message != "":
-                                row+="""<b>Новое </b><br />
-                                {}""".format(message)
+                                row+=message
                         if attachments != "":
                                 attachments=json.loads(attachments)
                                 if message != "":
@@ -169,11 +166,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                         row+="</td><td>"
                         row+=date+"</td>"
                 else:
-                        row+="<td colspan='2'>"
+                        row+="<td colspan='2'><b>Удалено </b><br />"
                         if oldMessage != "":
-                                row+="""
-                                <b>Удалено </b><br />
-                                {}""".format(oldMessage)
+                                row+=oldMessage
                         if oldAttachments != "":
                                 oldAttachments=json.loads(oldAttachments)
                                 if oldMessage != "":
