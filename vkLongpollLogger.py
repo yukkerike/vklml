@@ -410,7 +410,10 @@ for event in longpoll.listen():
                         fetch = cursor.fetchone()
                         if fetch is None:
                                 continue
-                        mask = event.mask
+                        if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может, это ошибочно расценивается, как удаление
+                                mask = event.mask
+                        else:
+                                continue
                         messageFlags = []
                         for i in flags:
                                 mask-=i
