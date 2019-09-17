@@ -99,7 +99,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                 if oldMessage != "":
                                         row+="<br />"
                                 row+="""
-                                <b>Старое </b><br />
                                 <div id="{0}_{1}_old" style="display: table;">
                                         <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
                                 """.format(message_id,timestamp)
@@ -138,7 +137,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                 if message != "":
                                         row+="<br />"
                                 row+="""
-                                <b>Новое </b><br />
                                 <div id="{0}_{1}_new" style="display: table;">
                                         <button id="{0}_{1}_new" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
                                 """.format(message_id,timestamp)
@@ -181,7 +179,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                 if oldMessage != "":
                                         row+="<br />"
                                 row+="""
-                                <b>Удалено </b><br />
                                 <div id="{0}_{1}_del" style="display: table;">
                                         <button id="{0}_{1}_del" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
                                 """.format(message_id,timestamp)
