@@ -207,7 +207,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                         row+=date+"</td>"
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+row+" "+time.time()+"\n")
+                f.write(str(e)+" "+row+" "+str(timestamp)+"\n")
                 f.close()
         finally:
                 row+="</tr>"
@@ -425,5 +425,5 @@ for event in longpoll.listen():
                                 activityReport(event.message_id, int(time.time()))
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+str(message_id)+" "+time.time()+"\n")
+                f.write(str(e)+" "+str(message_id)+" "+str(time.time())+"\n")
                 f.close()
