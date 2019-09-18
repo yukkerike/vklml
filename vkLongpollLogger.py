@@ -25,12 +25,10 @@ def bgWatcher():
         cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (int(time.time())-86400,))
         conn.commit()
 
-def activityReport(message_id, timestamp, isEdited=False, attachments="", message=""):
+def activityReport(message_id, timestamp, isEdited=False, attachments=None, message=""):
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = fwd = ""
                 row = "<tr><td>"
-                if attachments is None:
-                        attachments=""
                 date = time.ctime(timestamp)
                 if not os.path.exists(os.path.join(cwd, "mesAct")):
                         os.makedirs(os.path.join(cwd, "mesAct"))
@@ -76,6 +74,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                         oldMessage = fetch[5]
                 if not fetch[6] is None:
                         oldAttachments = fetch[6]
+                elif isEdited and message.find("youtu") != -1:
+                        row = None
+                        return
                 if not fetch[8] is None:
                         fwd = fetch[8]
                 row+="""
@@ -124,12 +125,12 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                 <div id="{0}_{1}_old_fwd" style="display: table;">
                                         <button id="{0}_{1}_old_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
                                 """.format(message_id,timestamp)
-                                row+="<br />".join(fwd.split("\n"))
+                                row+="<br />".join("&nbsp;".join(fwd.split(" ")).split("\n"))
                                 row+="</p></div>"
                         row+="</td><td><b>Новое </b><br />"
                         if message != "":
                                 row+=message
-                        if attachments != "":
+                        if not attachments is None:
                                 attachments=json.loads(attachments)
                                 if message != "":
                                         row+="<br />"
@@ -155,13 +156,13 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                                 row+="""<a href="{}" hidden>Документ</a>""".format(attachments['urls'][i])
                                 row+="</div>"
                         if fwd != "":
-                                if message != "" or attachments != "":
+                                if message != "" or not attachments is None:
                                         row+="<br />"
                                 row+="""
                                 <div id="{0}_{1}_new_fwd" style="display: table;">
                                         <button id="{0}_{1}_new_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
                                 """.format(message_id,timestamp)
-                                row+="<br />".join(fwd.split("\n"))
+                                row+="<br />".join("&nbsp;".join(fwd.split(" ")).split("\n"))
                                 row+="</p></div>"
                         row+="</td><td>"
                         row+=date+"</td>"
@@ -201,7 +202,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                                 <div id="{0}_{1}_del_fwd" style="display: table;">
                                         <button id="{0}_{1}_del_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
                                 """.format(message_id,timestamp)
-                                row+="<br />".join(fwd.split("\n"))
+                                row+="<br />".join("&nbsp;".join(fwd.split(" ")).split("\n"))
                                 row+="</p></div>"
                         row+="</td><td>"
                         row+=date+"</td>"
@@ -210,14 +211,13 @@ def activityReport(message_id, timestamp, isEdited=False, attachments="", messag
                 f.write(str(e)+" "+row+" "+str(timestamp)+"\n")
                 f.close()
         finally:
-                row+="</tr>"
-                messagesDump = messagesDump[:1443]+row+messagesDump[1443:]
+                if not row is None:
+                        row+="</tr>"
+                        messagesDump = messagesDump[:1443]+row+messagesDump[1443:]
+                        if not attachments is None:
+                                attachments = json.dumps(attachments)
                 messagesActivities.write(messagesDump)
                 messagesActivities.close()
-                if attachments != "":
-                        attachments = json.dumps(attachments)
-                else:
-                        attachments = None
                 if isEdited:
                         cursor.execute("""UPDATE messages SET message = ?, attachments = ? WHERE message_id = ?""", (message, attachments, message_id,))
                         conn.commit()
@@ -228,9 +228,9 @@ def getAttachments(message_id):
         fwd_messages = None
         try:
                 if attachments['fwd_messages'] == []:
-                        fwd_messages = json.dumps(attachments['reply_message'],indent=2,ensure_ascii=False,)
+                        fwd_messages = json.dumps(attachments['reply_message'],indent=1,ensure_ascii=False,)
                 else:
-                        fwd_messages = json.dumps(attachments['fwd_messages'],indent=2,ensure_ascii=False,)
+                        fwd_messages = json.dumps(attachments['fwd_messages'],indent=1,ensure_ascii=False,)
         except(KeyError):
                 pass
         attachments = attachments['attachments']
@@ -253,7 +253,7 @@ def getAttachments(message_id):
         if urls['count'] == 0:
                 urls = None
         else:
-                urls = json.dumps(urls,indent=2,ensure_ascii=False,)
+                urls = json.dumps(urls,ensure_ascii=False,)
         return urls,fwd_messages
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
@@ -410,7 +410,7 @@ for event in longpoll.listen():
                         fetch = cursor.fetchone()
                         if fetch is None:
                                 continue
-                        if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может, это ошибочно расценивается, как удаление
+                        if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может. Это ошибочно расценивается, как удаление сообщения.
                                 mask = event.mask
                         else:
                                 continue
