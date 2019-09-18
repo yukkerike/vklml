@@ -103,6 +103,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 """.format(message_id,timestamp)
                                 for i in range(oldAttachments['count']):
                                         urlSplit = oldAttachments['urls'][i].split(".")
+                                        if len(urlSplit) < 4: #Сниппет со стороннего сайта
+                                                row+="""<a href="{0}" hidden>{0}</a>""".format(oldAttachments['urls'][i])
+                                                continue
                                         if len(urlSplit[3].split(",")) == 1:
                                                 urlSplit = urlSplit[3]
                                                 if urlSplit == "jpg":
@@ -140,6 +143,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 """.format(message_id,timestamp)
                                 for i in range(attachments['count']):
                                         urlSplit = attachments['urls'][i].split(".")
+                                        if len(urlSplit) < 4: #Сниппет со стороннего сайта
+                                                row+="""<a href="{0}" hidden>{0}</a>""".format(oldAttachments['urls'][i])
+                                                continue
                                         if len(urlSplit[3].split(",")) == 1:
                                                 urlSplit = urlSplit[3]
                                                 if urlSplit == "jpg":
@@ -180,6 +186,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 """.format(message_id,timestamp)
                                 for i in range(oldAttachments['count']):
                                         urlSplit = oldAttachments['urls'][i].split(".")
+                                        if len(urlSplit) < 4: #Сниппет со стороннего сайта
+                                                row+="""<a href="{0}" hidden>{0}</a>""".format(oldAttachments['urls'][i])
+                                                continue
                                         if len(urlSplit[3].split(",")) == 1:
                                                 urlSplit = urlSplit[3]
                                                 if urlSplit == "jpg":
@@ -425,5 +434,5 @@ for event in longpoll.listen():
                                 activityReport(event.message_id, int(time.time()))
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+str(message_id)+" "+str(time.time())+"\n")
+                f.write(str(e)+" "+str(message_id)+" "+str(int(time.time()))+"\n")
                 f.close()
