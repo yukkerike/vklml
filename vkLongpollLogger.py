@@ -144,14 +144,14 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 for i in range(attachments['count']):
                                         urlSplit = attachments['urls'][i].split(".")
                                         if len(urlSplit) < 4: #Сниппет со стороннего сайта
-                                                row+="""<a href="{0}" hidden>{0}</a>""".format(oldAttachments['urls'][i])
+                                                row+="""<a href="{0}" hidden>{0}</a>""".format(attachments['urls'][i])
                                                 continue
                                         if len(urlSplit[3].split(",")) == 1:
                                                 urlSplit = urlSplit[3]
                                                 if urlSplit == "jpg":
                                                         row+="""<img data-src="{}" hidden></img>""".format(attachments['urls'][i])
                                                 if urlSplit == "mp3":
-                                                        row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
+                                                        row+="""<audio src="{}" controls hidden></audio>""".format(attachments['urls'][i])
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
                                                 row+="""
@@ -257,6 +257,8 @@ def getAttachments(message_id):
                         urls['urls'].append(attachments[i][type]['link_mp3'])
                 elif type == 'fwd':
                         pass
+                elif type == 'wall':
+                        urls['urls'].append("https://vk.com/wall"+str(attachments[i][type]['from_id'])+"_"+str(attachments[i][type]['id']))
                 else:
                         urls['urls'].append(attachments[i][type]['url'])
         if urls['count'] == 0:
@@ -344,7 +346,7 @@ tableWatcher = threading.Timer(3600,bgWatcher)
 tableWatcher.start()
 flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 for event in longpoll.listen():
-        peer_id = peer_name = user_id = user_name = message_id = message = urls = timestamp = fwd_messages = None    
+        peer_id = peer_name = user_name = message = urls = fwd_messages = None    
         try:
                 if event.type == VkEventType.MESSAGE_NEW:
                         if event.attachments != {}:
@@ -379,7 +381,6 @@ for event in longpoll.listen():
                                         fetch = fetch[1]        
                                 user_name = fetch
                                 peer_id = event.peer_id
-                                user_id = event.user_id
                         else: #ЛС
                                 cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
                                 fetch = cursor.fetchone()
@@ -394,15 +395,11 @@ for event in longpoll.listen():
                                 peer_name = None
                                 peer_id = None
                                 user_name = fetch
-                                user_id = event.user_id
-
-                        message_id = event.message_id
                         if event.message != "":
                                 message = event.message
                         else:
                                 message = None
-                        timestamp = event.timestamp
-                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(peer_id,peer_name,user_id,user_name,message_id,message,urls,timestamp,fwd_messages,))
+                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(peer_id,peer_name,event.user_id,user_name,event.message_id,message,urls,event.timestamp,fwd_messages,))
                         conn.commit()
                 elif event.type == VkEventType.MESSAGE_EDIT:
                         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
@@ -434,5 +431,5 @@ for event in longpoll.listen():
                                 activityReport(event.message_id, int(time.time()))
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+str(message_id)+" "+str(int(time.time()))+"\n")
+                f.write(str(e)+" "+str(event.message_id)+" "+str(int(time.time()))+"\n")
                 f.close()
