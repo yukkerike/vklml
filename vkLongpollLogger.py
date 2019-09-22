@@ -67,8 +67,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
                 fetch = cursor.fetchone()
-                if not fetch[1] is None:
-                        peer_name = fetch[1]
+                peer_name = fetch[1]
                 user_name = fetch[3]
                 if not fetch[5] is None:
                         oldMessage = fetch[5]
@@ -79,16 +78,18 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         return
                 if not fetch[8] is None:
                         fwd = fetch[8]
-                row+="""
-                {}</td>
-                """.format(str(message_id))
-                if peer_name != "":
-                        row+="""<td>{}</td><td>""".format(peer_name)
+                row+="""{}</td><td>""".format(str(message_id))
+                if fetch[0] > 2000000000:
+                        row+="""
+<a href='https://vk.com/im?sel=c{}' target="_blank">{}</a>
+</td><td>""".format(str(fetch[0]-2000000000),peer_name)
                 else:
-                        row+="<td colspan='2'>"
+                        row+="""
+<a href='https://vk.com/id{}' target="_blank">{}</a>
+</td><td>""".format(str(fetch[0]),peer_name)
                 row+="""
-                <a href='https://vk.com/id{}'>{}</a>
-                </td>""".format(str(fetch[2]),user_name)
+<a href='https://vk.com/id{}' target="_blank">{}</a>
+</td>""".format(str(fetch[2]),user_name)
                 if isEdited:
                         row+="<td><b>Старое </b><br />"
                         if oldMessage != "":
@@ -98,13 +99,12 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 if oldMessage != "":
                                         row+="<br />"
                                 row+="""
-                                <div id="{0}_{1}_old" style="display: table;">
-                                        <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
-                                """.format(message_id,timestamp)
+<div id="{0}_{1}_old" style="display: table;">
+        <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>""".format(message_id,timestamp)
                                 for i in range(oldAttachments['count']):
                                         urlSplit = oldAttachments['urls'][i].split(".")
                                         if len(urlSplit) < 4: #Сниппет со стороннего сайта
-                                                row+="""<a href="{0}" hidden>{0}</a>""".format(oldAttachments['urls'][i])
+                                                row+="""<a href="{0}" target="_blank" hidden>{0}</a>""".format(oldAttachments['urls'][i])
                                                 continue
                                         if len(urlSplit[3].split(",")) == 1:
                                                 urlSplit = urlSplit[3]
@@ -115,19 +115,18 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
                                                 row+="""
-                                                <a href="{}" hidden>Видео
-                                                        <img src="{}" loading="lazy"></img>
-                                                </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
+<a href="{}" target="_blank" hidden>Видео
+        <img src="{}" loading="lazy"></img>
+</a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
-                                                row+="""<a href="{}" hidden>Документ</a>""".format(oldAttachments['urls'][i])
+                                                row+="""<a href="{}" target="_blank" hidden>Документ</a>""".format(oldAttachments['urls'][i])
                                 row+="</div>"
                         if fwd != "":
                                 if oldMessage != "" or oldAttachments != "":
                                         row+="<br />"
                                 row+="""
-                                <div id="{0}_{1}_old_fwd" style="display: table;">
-                                        <button id="{0}_{1}_old_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
-                                """.format(message_id,timestamp)
+<div id="{0}_{1}_old_fwd" style="display: table;">
+        <button id="{0}_{1}_old_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>""".format(message_id,timestamp)
                                 row+="<br />".join("&nbsp;".join(fwd.split(" ")).split("\n"))
                                 row+="</p></div>"
                         row+="</td><td><b>Новое </b><br />"
@@ -138,13 +137,12 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 if message != "":
                                         row+="<br />"
                                 row+="""
-                                <div id="{0}_{1}_new" style="display: table;">
-                                        <button id="{0}_{1}_new" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
-                                """.format(message_id,timestamp)
+<div id="{0}_{1}_new" style="display: table;">
+        <button id="{0}_{1}_new" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>""".format(message_id,timestamp)
                                 for i in range(attachments['count']):
                                         urlSplit = attachments['urls'][i].split(".")
                                         if len(urlSplit) < 4: #Сниппет со стороннего сайта
-                                                row+="""<a href="{0}" hidden>{0}</a>""".format(attachments['urls'][i])
+                                                row+="""<a href="{0}" target="_blank" hidden>{0}</a>""".format(attachments['urls'][i])
                                                 continue
                                         if len(urlSplit[3].split(",")) == 1:
                                                 urlSplit = urlSplit[3]
@@ -155,19 +153,18 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
                                                 row+="""
-                                                        <a href="{}" hidden>Видео
+                                                        <a href="{}" target="_blank" hidden>Видео
                                                         <img src="{}" loading="lazy"></img>
                                                 </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
-                                                row+="""<a href="{}" hidden>Документ</a>""".format(attachments['urls'][i])
+                                                row+="""<a href="{}" target="_blank" hidden>Документ</a>""".format(attachments['urls'][i])
                                 row+="</div>"
                         if fwd != "":
                                 if message != "" or not attachments is None:
                                         row+="<br />"
                                 row+="""
-                                <div id="{0}_{1}_new_fwd" style="display: table;">
-                                        <button id="{0}_{1}_new_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
-                                """.format(message_id,timestamp)
+<div id="{0}_{1}_new_fwd" style="display: table;">
+        <button id="{0}_{1}_new_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>""".format(message_id,timestamp)
                                 row+="<br />".join("&nbsp;".join(fwd.split(" ")).split("\n"))
                                 row+="</p></div>"
                         row+="</td><td>"
@@ -181,13 +178,12 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 if oldMessage != "":
                                         row+="<br />"
                                 row+="""
-                                <div id="{0}_{1}_del" style="display: table;">
-                                        <button id="{0}_{1}_del" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>
-                                """.format(message_id,timestamp)
+<div id="{0}_{1}_del" style="display: table;">
+        <button id="{0}_{1}_del" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>""".format(message_id,timestamp)
                                 for i in range(oldAttachments['count']):
                                         urlSplit = oldAttachments['urls'][i].split(".")
                                         if len(urlSplit) < 4: #Сниппет со стороннего сайта
-                                                row+="""<a href="{0}" hidden>{0}</a>""".format(oldAttachments['urls'][i])
+                                                row+="""<a href="{0}" target="_blank" hidden>{0}</a>""".format(oldAttachments['urls'][i])
                                                 continue
                                         if len(urlSplit[3].split(",")) == 1:
                                                 urlSplit = urlSplit[3]
@@ -198,11 +194,11 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                         elif len(urlSplit[3].split(",")) == 2:
                                                 urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
                                                 row+="""
-                                                <a href="{}" hidden>Видео
+                                                <a href="{}" target="_blank" hidden>Видео
                                                         <img src="{}" loading="lazy"></img>
                                                 </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
                                         else:
-                                                row+="""<a href="{}" hidden>Документ</a>""".format(oldAttachments['urls'][i])
+                                                row+="""<a href="{}" target="_blank" hidden>Документ</a>""".format(oldAttachments['urls'][i])
                                 row+="</div>"
                         if fwd != "":
                                 if oldMessage != "" or oldAttachments != "":
@@ -232,8 +228,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         conn.commit()
 
 
-def getAttachments(message_id):
-        attachments = vk_session.method("messages.getById",{"message_ids":event.message_id})['items'][0]
+def getAttachments(attachments):
         fwd_messages = None
         try:
                 if attachments['fwd_messages'] == []:
@@ -255,8 +250,8 @@ def getAttachments(message_id):
                         urls['urls'].append(attachments[i][type]['photo_320']+","+str(attachments[i][type]['owner_id'])+"_"+str(attachments[i][type]['id'])+"_"+str(attachments[i][type]['access_key']))
                 elif type == 'audio_message':
                         urls['urls'].append(attachments[i][type]['link_mp3'])
-                elif type == 'fwd':
-                        pass
+                elif type == 'poll':
+                        urls['count']-=1
                 elif type == 'wall':
                         urls['urls'].append("https://vk.com/wall"+str(attachments[i][type]['from_id'])+"_"+str(attachments[i][type]['id']))
                 else:
@@ -276,31 +271,25 @@ cwd = os.path.dirname(os.path.abspath(__file__))
 if not os.path.exists(os.path.join(cwd, "messages.db")):
         conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
         cursor = conn.cursor()
-        cursor.execute("""
-        CREATE TABLE "messages" (
-                "peer_id"	INTEGER,
-                "peer_name"	TEXT,
-                "user_id"	INTEGER NOT NULL,
-                "user_name"	TEXT NOT NULL,
-                "message_id"	INTEGER NOT NULL UNIQUE,
-                "message"	TEXT,
-                "attachments"	TEXT,
-                "timestamp"	INTEGER NOT NULL,
-                "fwd_messages"  TEXT
-        )
-        """)
-        cursor.execute("""
-        CREATE TABLE "chats_cache" (
-                "chat_id"	INTEGER NOT NULL UNIQUE,
-                "chat_name"	TEXT NOT NULL
-        )
-        """)
-        cursor.execute("""
-        CREATE TABLE "users_cache" (
-                "user_id"	INTEGER NOT NULL UNIQUE,
-                "user_name"	TEXT NOT NULL
-        )
-        """)
+        cursor.execute("""CREATE TABLE "messages" (
+        "peer_id"	INTEGER NOT NULL,
+        "peer_name"	TEXT NOT NULL,
+        "user_id"	INTEGER NOT NULL,
+        "user_name"	TEXT NOT NULL,
+        "message_id"	INTEGER NOT NULL UNIQUE,
+        "message"	TEXT,
+        "attachments"	TEXT,
+        "timestamp"	INTEGER NOT NULL,
+        "fwd_messages"  TEXT
+)""")
+        cursor.execute("""CREATE TABLE "chats_cache" (
+        "chat_id"	INTEGER NOT NULL UNIQUE,
+        "chat_name"	TEXT NOT NULL
+)""")
+        cursor.execute("""CREATE TABLE "users_cache" (
+        "user_id"	INTEGER NOT NULL UNIQUE,
+        "user_name"	TEXT NOT NULL
+)""")
         conn.commit()
 else:
         conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
@@ -312,31 +301,31 @@ tableWatcher.start()
 if not os.path.exists(os.path.join(cwd, "vkGetVideoLink.html")):
         f = open(os.path.join(cwd, 'vkGetVideoLink.html'), 'w')
         f.write("""<!DOCTYPE html>
-        <html>
+<html>
         <body>
-        <input id="videos"></input>
-        <input type="submit" id="submit" value="Отправить">
-        <script>
-                let ACCESS_TOKEN = '{}';
-                document.getElementById('submit').onclick = function() {{
-                document.getElementById('submit').disabled = true;
-                var script = document.createElement('SCRIPT');
-                script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + videos.value + "&callback=callbackFunc";
-                document.getElementsByTagName("head")[0].appendChild(script);
-                }}
-                function callbackFunc(result) {{
-                var frame = document.createElement('iframe');
-                frame.src = result.response.items[0]["player"];
-                frame.style = "position:absolute;top:0;left:0;width:100%;height:100%;"
-                document.getElementsByTagName("div")[0].appendChild(frame);
-                }}
-                let videos = document.getElementById('videos');
-                videos.value = document.location.search.slice(1);
-                if (videos.value != "") document.getElementById('submit').click()
-        </script>
-        <div style="position:relative;padding-top:56.25%;"></div>
+                <input id="videos"></input>
+                <input type="submit" id="submit" value="Отправить">
+                <script>
+                        let ACCESS_TOKEN = '{}';
+                        document.getElementById('submit').onclick = function() {{
+                        document.getElementById('submit').disabled = true;
+                        var script = document.createElement('SCRIPT');
+                        script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + videos.value + "&callback=callbackFunc";
+                        document.getElementsByTagName("head")[0].appendChild(script);
+                        }}
+                        function callbackFunc(result) {{
+                        var frame = document.createElement('iframe');
+                        frame.src = result.response.items[0]["player"];
+                        frame.style = "position:absolute;top:0;left:0;width:100%;height:100%;"
+                        document.getElementsByTagName("div")[0].appendChild(frame);
+                        }}
+                        let videos = document.getElementById('videos');
+                        videos.value = document.location.search.slice(1);
+                        if (videos.value != "") document.getElementById('submit').click()
+                </script>
+                <div style="position:relative;padding-top:56.25%;"></div>
         </body>
-        </html>""".format(ACCESS_TOKEN))
+</html>""".format(ACCESS_TOKEN))
         f.close()
 
 
@@ -346,60 +335,63 @@ tableWatcher = threading.Timer(3600,bgWatcher)
 tableWatcher.start()
 flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 for event in longpoll.listen():
-        peer_id = peer_name = user_name = message = urls = fwd_messages = None    
+        peer_name = user_name = message = urls = fwd_messages = None    
         try:
                 if event.type == VkEventType.MESSAGE_NEW:
                         if event.attachments != {}:
-                                urls,fwd_messages = getAttachments(event.message_id)
+                                urls,fwd_messages = getAttachments(event.message_data)
                                 if urls == "sticker":
                                         continue
                         else:
                                 urls = None
-                        if event.peer_id < 0: #Сообщество (игнор)
-                                continue
-                        elif event.peer_id != event.user_id: #Беседа
-                                cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (event.peer_id-2000000000,))
+                        if event.from_chat:
+                                cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (event.peer_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
                                         name = vk_session.method("messages.getChat",{"chat_id":event.peer_id-2000000000})["title"]
-                                        cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (event.peer_id-2000000000,name,))
+                                        cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (event.peer_id,name,))
                                         conn.commit()
-                                        fetch = name
+                                        peer_name = name
                                 else:
-                                        fetch = fetch[1]
-                                peer_name = fetch
-
-                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
+                                        peer_name = fetch[1]
+                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.message_data['from_id'],))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
-                                        name = vk_session.method("users.get",{"user_id":event.user_id})[0]
+                                        name = vk_session.method("users.get",{"user_id":event.message_data['from_id']})[0]
                                         name = name['first_name'] + " " + name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,name,))
+                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.message_data['from_id'],name,))
                                         conn.commit()
-                                        fetch = name
+                                        user_name = name
                                 else:
-                                        fetch = fetch[1]        
-                                user_name = fetch
-                                peer_id = event.peer_id
-                        else: #ЛС
-                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
+                                        user_name = fetch[1]        
+                        elif event.from_user:
+                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.peer_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
-                                        name = vk_session.method("users.get",{"user_id":event.user_id})[0]
+                                        name = vk_session.method("users.get",{"user_id":event.peer_id})[0]
                                         name = name['first_name'] + " " + name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,name,))
+                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.peer_id,name,))
                                         conn.commit()
-                                        fetch = name
+                                        peer_name = name
                                 else:
-                                        fetch = fetch[1]
-                                peer_name = None
-                                peer_id = None
-                                user_name = fetch
+                                        peer_name = fetch[1]
+                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.message_data['from_id'],))
+                                fetch = cursor.fetchone()
+                                if fetch is None:
+                                        name = vk_session.method("users.get",{"user_id":event.message_data['from_id']})[0]
+                                        name = name['first_name'] + " " + name['last_name']
+                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.message_data['from_id'],name,))
+                                        conn.commit()
+                                        user_name = name
+                                else:
+                                        user_name = fetch[1]
+                        else:
+                            continue
                         if event.message != "":
                                 message = event.message
                         else:
                                 message = None
-                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(peer_id,peer_name,event.user_id,user_name,event.message_id,message,urls,event.timestamp,fwd_messages,))
+                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(event.peer_id,peer_name,event.message_data['from_id'],user_name,event.message_id,message,urls,event.timestamp,fwd_messages,))
                         conn.commit()
                 elif event.type == VkEventType.MESSAGE_EDIT:
                         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
@@ -407,7 +399,7 @@ for event in longpoll.listen():
                         if fetch is None:
                                 continue
                         if event.attachments != {}:
-                                attachments,fwd_messages = getAttachments(event.message_id)
+                                attachments,fwd_messages = getAttachments(event.message_data)
                         else:
                                 attachments = None
                         activityReport(event.message_id, int(time.time()), True, attachments, event.text)
