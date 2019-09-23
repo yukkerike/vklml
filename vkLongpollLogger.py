@@ -93,7 +93,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 if isEdited:
                         row+="<td><b>Старое </b><br />"
                         if oldMessage != "":
-                                row+=oldMessage
+                                row+="<br />".join("&nbsp;".join(oldMessage.split(" ")).split("\n"))
                         if oldAttachments != "":
                                 oldAttachments=json.loads(oldAttachments)
                                 if oldMessage != "":
@@ -131,7 +131,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 row+="</p></div>"
                         row+="</td><td><b>Новое </b><br />"
                         if message != "":
-                                row+=message
+                                row+="<br />".join("&nbsp;".join(message.split(" ")).split("\n"))
                         if not attachments is None:
                                 attachments=json.loads(attachments)
                                 if message != "":
@@ -211,7 +211,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 row+="</p></div>"
                         row+="</td><td>"
                         row+=date+"</td>"
-        except BaseException as e:
+        except ZeroDivisionError as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                 f.write(str(e)+" "+row+" "+str(timestamp)+"\n")
                 f.close()
@@ -338,6 +338,8 @@ for event in longpoll.listen():
         peer_name = user_name = message = urls = fwd_messages = None    
         try:
                 if event.type == VkEventType.MESSAGE_NEW:
+                        if event.message_data is None:
+                                event.message_data={'from_id':event.user_id}
                         if event.attachments != {}:
                                 urls,fwd_messages = getAttachments(event.message_data)
                                 if urls == "sticker":
@@ -422,7 +424,7 @@ for event in longpoll.listen():
                                         messageFlags.append(i)
                         if (131072 in messageFlags or 128 in messageFlags):
                                 activityReport(event.message_id, int(time.time()))
-        except BaseException as e:
+        except ZeroDivisionError as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                 f.write(str(e)+" "+str(event.message_id)+" "+str(int(time.time()))+"\n")
                 f.close()
