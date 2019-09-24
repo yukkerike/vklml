@@ -393,9 +393,8 @@ for event in longpoll.listen():
                                 message = event.message
                         else:
                                 message = None
-                        if not (message is None and urls is None and fwd_messages is None):
-                                cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(event.peer_id,peer_name,event.message_data['from_id'],user_name,event.message_id,message,urls,event.timestamp,fwd_messages,))
-                                conn.commit()
+                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(event.peer_id,peer_name,event.message_data['from_id'],user_name,event.message_id,message,urls,event.timestamp,fwd_messages,))
+                        conn.commit()
                 elif event.type == VkEventType.MESSAGE_EDIT:
                         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
                         fetch = cursor.fetchone()
