@@ -93,7 +93,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 if isEdited:
                         row+="<td><b>Старое </b><br />"
                         if oldMessage != "":
-                                row+="<br />".join("&nbsp;".join(oldMessage.split(" ")).split("\n"))
+                                row+="<br />".join(oldMessage.split("\n"))
                         if oldAttachments != "":
                                 oldAttachments=json.loads(oldAttachments)
                                 if oldMessage != "":
@@ -131,7 +131,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 row+="</p></div>"
                         row+="</td><td><b>Новое </b><br />"
                         if message != "":
-                                row+="<br />".join("&nbsp;".join(message.split(" ")).split("\n"))
+                                row+="<br />".join(message.split("\n"))
                         if not attachments is None:
                                 attachments=json.loads(attachments)
                                 if message != "":
