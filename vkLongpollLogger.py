@@ -425,5 +425,5 @@ for event in longpoll.listen():
                                 activityReport(event.message_id, int(time.time()))
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+str(event.message_id)+" "+str(int(time.time()))+"\n")
+                f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+str(int(time.time()))+"\n")
                 f.close()
