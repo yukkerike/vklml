@@ -264,7 +264,7 @@ def getAttachments(attachments):
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
-longpoll = VkLongPoll(vk_session, wait=60, mode=2, preload_messages=True)
+longpoll = VkLongPoll(vk_session, mode=2, preload_messages=True)
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -340,7 +340,7 @@ for event in longpoll.listen():
                 if event.type == VkEventType.MESSAGE_NEW:
                         if event.message_data is None:
                                 event.message_data={'from_id':event.user_id}
-                        if event.attachments != {}:
+                        elif event.attachments != {}:
                                 urls,fwd_messages = getAttachments(event.message_data)
                                 if urls == "sticker":
                                         continue
