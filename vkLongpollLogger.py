@@ -29,7 +29,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = fwd = ""
                 row = "<tr><td>"
-                date = time.ctime(timestamp)
                 if not os.path.exists(os.path.join(cwd, "mesAct")):
                         os.makedirs(os.path.join(cwd, "mesAct"))
                 if not os.path.exists(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html")):
@@ -78,6 +77,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         return
                 if not fetch[8] is None:
                         fwd = fetch[8]
+                date = time.ctime(fetch[7])
                 row+="""{}</td><td>""".format(str(message_id))
                 if fetch[0] > 2000000000:
                         row+="""
@@ -213,7 +213,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         row+=date+"</td>"
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+row+" "+str(timestamp)+"\n")
+                f.write(str(e)+" "+row+" "+time.ctime(timestamp)+"\n")
                 f.close()
         finally:
                 if not row is None:
@@ -244,8 +244,8 @@ def getAttachments(attachments):
                 type = attachments[i]['type']
                 if type == 'photo':
                         urls['urls'].append(attachments[i][type]['sizes'][len(attachments[i][type]['sizes'])-1]['url'])
-                elif type == 'sticker':
-                        return "sticker", None
+                elif type == 'sticker' or type == "gift":
+                        return "skip", None
                 elif type == 'video':
                         urls['urls'].append(attachments[i][type]['photo_320']+","+str(attachments[i][type]['owner_id'])+"_"+str(attachments[i][type]['id'])+"_"+str(attachments[i][type]['access_key']))
                 elif type == 'audio_message':
@@ -342,7 +342,7 @@ for event in longpoll.listen():
                                 event.message_data={'from_id':event.user_id}
                         elif event.attachments != {}:
                                 urls,fwd_messages = getAttachments(event.message_data)
-                                if urls == "sticker":
+                                if urls == "skip":
                                         continue
                         else:
                                 urls = None
@@ -425,5 +425,5 @@ for event in longpoll.listen():
                                 activityReport(event.message_id, int(time.time()))
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+str(int(time.time()))+"\n")
+                f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n")
                 f.close()
