@@ -264,7 +264,7 @@ def getAttachments(attachments):
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
-longpoll = VkLongPoll(vk_session, mode=2, preload_messages=True)
+longpoll = VkLongPoll(vk_session, wait=10, mode=2, preload_messages=True)
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
