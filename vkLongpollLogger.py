@@ -228,7 +228,8 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         conn.commit()
 
 
-def getAttachments(attachments):
+def getAttachments(message_id):
+        attachments = vk_session.method("messages.getById",{"message_ids":event.message_id})['items'][0]
         fwd_messages = None
         try:
                 if attachments['fwd_messages'] == []:
@@ -264,7 +265,7 @@ def getAttachments(attachments):
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
-longpoll = VkLongPoll(vk_session, wait=10, mode=2, preload_messages=True)
+longpoll = VkLongPoll(vk_session, wait=10, mode=2)
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -334,14 +335,15 @@ tableWatcher.join()
 tableWatcher = threading.Timer(3600,bgWatcher)
 tableWatcher.start()
 flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
+
+account_id = vk_session.method("users.get")[0]['id']
+
 for event in longpoll.listen():
         peer_name = user_name = message = urls = fwd_messages = None    
         try:
                 if event.type == VkEventType.MESSAGE_NEW:
-                        if event.message_data is None:
-                                event.message_data={'from_id':event.user_id}
-                        elif event.attachments != {}:
-                                urls,fwd_messages = getAttachments(event.message_data)
+                        if event.attachments != {}:
+                                urls,fwd_messages = getAttachments(event.message_id)
                                 if urls == "skip":
                                         continue
                         else:
@@ -356,12 +358,12 @@ for event in longpoll.listen():
                                         peer_name = name
                                 else:
                                         peer_name = fetch[1]
-                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.message_data['from_id'],))
+                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
-                                        name = vk_session.method("users.get",{"user_id":event.message_data['from_id']})[0]
+                                        name = vk_session.method("users.get",{"user_id":event.user_id})[0]
                                         name = name['first_name'] + " " + name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.message_data['from_id'],name,))
+                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,name,))
                                         conn.commit()
                                         user_name = name
                                 else:
@@ -377,12 +379,14 @@ for event in longpoll.listen():
                                         peer_name = name
                                 else:
                                         peer_name = fetch[1]
-                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.message_data['from_id'],))
+                                if event.from_me:
+                                        event.user_id = account_id
+                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
-                                        name = vk_session.method("users.get",{"user_id":event.message_data['from_id']})[0]
+                                        name = vk_session.method("users.get",{"user_id":event.user_id})[0]
                                         name = name['first_name'] + " " + name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.message_data['from_id'],name,))
+                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,name,))
                                         conn.commit()
                                         user_name = name
                                 else:
@@ -393,7 +397,7 @@ for event in longpoll.listen():
                                 message = event.message
                         else:
                                 message = None
-                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(event.peer_id,peer_name,event.message_data['from_id'],user_name,event.message_id,message,urls,event.timestamp,fwd_messages,))
+                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(event.peer_id,peer_name,event.user_id,user_name,event.message_id,message,urls,event.timestamp,fwd_messages,))
                         conn.commit()
                 elif event.type == VkEventType.MESSAGE_EDIT:
                         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
@@ -401,7 +405,7 @@ for event in longpoll.listen():
                         if fetch is None:
                                 continue
                         if event.attachments != {}:
-                                attachments,fwd_messages = getAttachments(event.message_data)
+                                attachments,fwd_messages = getAttachments(event.message_id)
                         else:
                                 attachments = None
                         activityReport(event.message_id, int(time.time()), True, attachments, event.text)
