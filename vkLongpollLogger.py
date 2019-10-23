@@ -28,20 +28,16 @@ def bgWatcher():
 def fwdParse(fwd):
         html="""<table border="1" width="100%" frame="hsides" style="margin-left:5px;">"""
         for i in fwd:
-                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (i['from_id'],))
-                fetch = cursor.fetchone()
-                if fetch is None:
-                        user_name = vk_session.method("users.get",{"user_id":i['from_id']})[0]
-                        user_name = user_name['first_name'] + " " + user_name['last_name']
-                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (i['from_id'],user_name,))
-                        conn.commit()
+                user_name = getUserName(i['from_id'])
+                if i['from_id'] < 0:
+                        html+="""<tr><td>
+<a href='https://vk.com/public{}' target="_blank">{}</a>
+</td></tr>""".format(-i['from_id'],user_name)
                 else:
-                        user_name = fetch[1]
-                html+="""<tr><td>
+                        html+="""<tr><td>
 <a href='https://vk.com/id{}' target="_blank">{}</a>
 </td></tr>""".format(i['from_id'],user_name)
                 html+="<tr><td>"+"<br />".join(i['text'].split("\n"))+"<br />"
-
                 if i['attachments'] != []:
                         html+=attachmentsParse(parseUrls(i['attachments']))
                 if 'fwd_messages' in i:
@@ -86,7 +82,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 attachmentsJ = attachments
                 if not attachments is None:
                         attachments = parseUrls(json.loads(attachments))
-                row = "<tr><td>"
+                row = """
+                        <tr>
+                                <td>"""
                 if not os.path.exists(os.path.join(cwd, "mesAct")):
                         os.makedirs(os.path.join(cwd, "mesAct"))
                 if not os.path.exists(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html")):
@@ -128,27 +126,47 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 if not fetch[8] is None:
                         fwd = json.loads(fetch[8])
                 date = time.ctime(fetch[7])
-                row+="""{}</td><td>""".format(str(message_id))
+                row+="""{}</td>
+                                <td>""".format(str(message_id))
                 if fetch[0] > 2000000000:
                         row+="""
-<a href='https://vk.com/im?sel=c{}' target="_blank">{}</a>
-</td><td>""".format(str(fetch[0]-2000000000),peer_name)
+                                        <a href='https://vk.com/im?sel=c{}' target="_blank">{}</a>
+                                </td>
+                                <td>""".format(str(fetch[0]-2000000000),peer_name)
+                elif fetch[0] < 0:
+                        row+="""
+                                        <a href='https://vk.com/public{}' target="_blank">{}</a>
+                                </td>
+                                <td>""".format(str(-fetch[0]),peer_name)
                 else:
                         row+="""
-<a href='https://vk.com/id{}' target="_blank">{}</a>
-</td><td>""".format(str(fetch[0]),peer_name)
-                row+="""
-<a href='https://vk.com/id{}' target="_blank">{}</a>
-</td>""".format(str(fetch[2]),user_name)
+                                        <a href='https://vk.com/id{}' target="_blank">{}</a>
+                                </td>
+                                <td>""".format(str(fetch[0]),peer_name)
+                if fetch[2] < 0:
+                        row+="""
+                                        <a href='https://vk.com/public{}' target="_blank">{}</a>
+                                </td>""".format(str(-fetch[2]),peer_name)
+                else:
+                        row+="""
+                                        <a href='https://vk.com/id{}' target="_blank">{}</a>
+                                </td>""".format(str(fetch[2]),user_name)
                 if isEdited:
-                        row+="""<td width="50%"><b>Старое</b><br />"""
+                        row+="""
+                                <td width="50%">
+                                        <b>Старое</b><br />
+                                        """
                         if oldMessage != "":
                                 row+="<br />".join(oldMessage.split("\n"))+"<br />"
                         if oldAttachments != "":
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
                         if fwd != "":
                                 row+="<b>Пересланное</b><br />"+fwdParse(fwd)
-                        row+="""</td><td width="50%"><b>Новое</b><br />"""
+                        row+="""
+                                </td>
+                                <td width="50%">
+                                        <b>Новое</b><br />
+                                        """
                         if message != "":
                                 row+="<br />".join(message.split("\n"))+"<br />"
                         if not attachments is None:
@@ -158,18 +176,20 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         row+="</td><td>"
                         row+=date+"</td>"
                 else:
-                        row+="""<td width="100%" colspan='2'><b>Удалено</b><br />"""
+                        row+="""
+                                <td width="100%" colspan='2'><b>Удалено</b><br />
+                                """
                         if oldMessage != "":
                                 row+="<br />".join(oldMessage.split("\n"))+"<br />"
                         if oldAttachments != "":
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
                         if fwd != "":
                                 row+="<b>Пересланное</b><br />"+fwdParse(fwd)
-                        row+="</td><td>"
+                        row+="</td>\n<td>"
                         row+=date+"</td>"
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+row+" "+time.ctime(timestamp)+"\n")
+                f.write(str(e)+" "+row+" "+time.ctime(timestamp)+"\n\n")
                 f.close()
         finally:
                 if not row is None:
@@ -221,6 +241,57 @@ def parseUrls(attachments):
                 else:
                         urls.append(i[type]['url'])
         return urls
+
+def getUserName(id):
+        if id > 2000000000:
+                cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (id,))
+                fetch = cursor.fetchone()
+                if fetch is None:
+                        name = vk_session.method("messages.getChat",{"chat_id":id-2000000000})["title"]
+                        cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id,name,))
+                        conn.commit()
+                else:
+                        name = fetch[1]
+        elif id < 0:
+                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
+                fetch = cursor.fetchone()
+                if fetch is None:
+                        name = vk_session.method("groups.getById",{"group_id":-id})[0]['name']
+                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
+                        conn.commit()
+                else:
+                        name = fetch[1]
+        else:
+                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
+                fetch = cursor.fetchone()
+                if fetch is None:
+                        name = vk_session.method("users.get",{"user_id":id})[0]
+                        name = name['first_name'] + " " + name['last_name']
+                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
+                        conn.commit()
+                else:
+                        name = fetch[1]
+        return name
+
+def parseEvent(message_id,peer_id,user_id,message,attachments,from_chat,from_user,from_group,timestamp):
+        if attachments != {}:
+                attachments,fwd_messages = getAttachments(message_id)
+        else:
+                attachments = None
+                fwd_messages = None
+        if from_chat:
+                peer_name = getUserName(peer_id)
+                user_name = getUserName(user_id)      
+        elif from_user:
+                peer_name = getUserName(peer_id)
+                user_name = getUserName(user_id)
+        elif from_group:
+                peer_name = getUserName(peer_id)
+                user_name = getUserName(user_id)
+        if message == "":
+                message = None
+        return peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages
+        
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
@@ -301,67 +372,36 @@ for event in longpoll.listen():
         peer_name = user_name = message = attachments = fwd_messages = None    
         try:
                 if event.type == VkEventType.MESSAGE_NEW:
-                        if event.attachments != {}:
-                                attachments,fwd_messages = getAttachments(event.message_id)
-                        else:
-                                attachments = None
-                        if event.from_chat:
-                                cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (event.peer_id,))
-                                fetch = cursor.fetchone()
-                                if fetch is None:
-                                        peer_name = vk_session.method("messages.getChat",{"chat_id":event.peer_id-2000000000})["title"]
-                                        cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (event.peer_id,peer_name,))
-                                        conn.commit()
-                                else:
-                                        peer_name = fetch[1]
-                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
-                                fetch = cursor.fetchone()
-                                if fetch is None:
-                                        user_name = vk_session.method("users.get",{"user_id":event.user_id})[0]
-                                        user_name = user_name['first_name'] + " " + user_name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,user_name,))
-                                        conn.commit()
-                                else:
-                                        user_name = fetch[1]        
-                        elif event.from_user:
-                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.peer_id,))
-                                fetch = cursor.fetchone()
-                                if fetch is None:
-                                        peer_name = vk_session.method("users.get",{"user_id":event.peer_id})[0]
-                                        peer_name = peer_name['first_name'] + " " + peer_name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.peer_id,peer_name,))
-                                        conn.commit()
-                                else:
-                                        peer_name = fetch[1]
+                        if event.from_user:
                                 if event.from_me:
                                         event.user_id = account_id
-                                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
-                                fetch = cursor.fetchone()
-                                if fetch is None:
-                                        user_name = vk_session.method("users.get",{"user_id":event.user_id})[0]
-                                        user_name = user_name['first_name'] + " " + user_name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,user_name,))
-                                        conn.commit()
+                        elif event.from_group:
+                                if event.from_me:
+                                        event.user_id = account_id
                                 else:
-                                        user_name = fetch[1]
-                        else:
-                            continue
-                        if event.message != "":
-                                message = event.message
-                        else:
-                                message = None
-                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(event.peer_id,peer_name,event.user_id,user_name,event.message_id,message,attachments,event.timestamp,fwd_messages,))
+                                        event.user_id = event.peer_id
+                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
                         conn.commit()
                 elif event.type == VkEventType.MESSAGE_EDIT:
                         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
                         fetch = cursor.fetchone()
                         if fetch is None:
-                                continue
+                                if event.from_user:
+                                        if event.from_me:
+                                                event.user_id = account_id
+                                elif event.from_group:
+                                        if event.from_me:
+                                                event.user_id = account_id
+                                        else:
+                                                event.user_id = event.peer_id
+                                event.message='⚠️ '+event.message
+                                cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
+                                conn.commit()
                         if event.attachments != {}:
                                 attachments,fwd_messages = getAttachments(event.message_id)
                         else:
                                 attachments = None
-                        activityReport(event.message_id, int(time.time()), True, attachments, event.text)
+                        activityReport(event.message_id, event.timestamp, True, attachments, event.text)
                 elif event.type == VkEventType.MESSAGE_FLAGS_SET:
                         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
                         fetch = cursor.fetchone()
@@ -384,5 +424,5 @@ for event in longpoll.listen():
                                 conn.commit()
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n")
+                f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
                 f.close()
