@@ -14,20 +14,78 @@ if len(sys.argv)>1 :
 if ACCESS_TOKEN == "":
         raise Exception("Не задан ACCESS_TOKEN")
 
-def interuppt_handler(signum, frame):
+def interrupt_handler(signum, frame):
         conn.commit()
         cursor.close()
         tableWatcher.cancel()
         os._exit(0)
-signal.signal(signal.SIGINT, interuppt_handler)
+signal.signal(signal.SIGINT, interrupt_handler)
 
 def bgWatcher():
         cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (int(time.time())-86400,))
         conn.commit()
 
+def fwdParse(fwd):
+        html="""<table border="1" width="100%" frame="hsides" style="margin-left:5px;">"""
+        for i in fwd:
+                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (i['from_id'],))
+                fetch = cursor.fetchone()
+                if fetch is None:
+                        user_name = vk_session.method("users.get",{"user_id":i['from_id']})[0]
+                        user_name = user_name['first_name'] + " " + user_name['last_name']
+                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (i['from_id'],user_name,))
+                        conn.commit()
+                else:
+                        user_name = fetch[1]
+                html+="""<tr><td>
+<a href='https://vk.com/id{}' target="_blank">{}</a>
+</td></tr>""".format(i['from_id'],user_name)
+                html+="<tr><td>"+"<br />".join(i['text'].split("\n"))+"<br />"
+
+                if i['attachments'] != []:
+                        html+=attachmentsParse(parseUrls(i['attachments']))
+                if 'fwd_messages' in i:
+                        html+=fwdParse(i['fwd_messages'])
+                if 'reply_message' in i:
+                        html+=fwdParse([i['reply_message']])
+                html+="</td></tr>"
+                html+="<tr><td>{}</td></tr>".format(time.ctime(i['date']))
+        html+="</table>"
+        return html
+
+def attachmentsParse(urls):
+    html="""<div>"""
+    for i in urls:
+            if i.find("sticker") != -1:
+                    html+="""<img src="{}"/>""".format(i)
+                    continue
+            urlSplit = i.split(".")
+            if len(urlSplit) < 4: #Сниппет со стороннего сайта
+                    html+="""<a href="{0}" target="_blank">{0}</a>""".format(i)
+                    continue
+            if len(urlSplit[3].split(",")) == 1:
+                    urlSplit = urlSplit[3]
+                    if urlSplit == "jpg":
+                            html+="""<img src="{}" wigth=/>""".format(i)
+                    if urlSplit == "mp3":
+                            html+="""<audio src="{}" controls></audio>""".format(i)
+            elif len(urlSplit[3].split(",")) == 2:
+                    urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
+                    html+="""
+    <a href="{}" target="_blank">Видео
+    <img src="{}"/>
+    </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
+            else:
+                    html+="""<a href="{}" target="_blank">Документ</a>""".format(i)
+    html+="</div>"
+    return html
+
 def activityReport(message_id, timestamp, isEdited=False, attachments=None, message=""):
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = fwd = ""
+                attachmentsJ = attachments
+                if not attachments is None:
+                        attachments = parseUrls(json.loads(attachments))
                 row = "<tr><td>"
                 if not os.path.exists(os.path.join(cwd, "mesAct")):
                         os.makedirs(os.path.join(cwd, "mesAct"))
@@ -37,22 +95,14 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
 <html>
         <head>
                 <meta charset="utf-8">
-                <script>
-                        function spoiler(elem_id) {
-                                for (i = 1; i < document.getElementById(elem_id).children.length; i++) {
-                                        let data = document.getElementById(elem_id).children[i].getAttribute('data-src');
-                                        if (document.getElementById(elem_id).children[i].hidden == !0) {
-                                                document.getElementById(elem_id).children[i].removeAttribute("hidden");
-                                                if (data !== null) 
-                                                        document.getElementById(elem_id).children[i].src = document.getElementById(elem_id).children[i].getAttribute('data-src')
-                                        } else {
-                                                if (data !== null) 
-                                                        document.getElementById(elem_id).children[i].removeAttribute("src");
-                                                document.getElementById(elem_id).children[i].hidden = !0
-                                        }
-                                }
+                <style>
+                        img, a, audio{
+                                display: block;
                         }
-                </script>
+                        img{
+                                max-width: 300px;
+                        }
+                </style>
         </head>
         <body>
                 <table cellspacing="0" border="1" width="100%" frame="hsides" white-space="pre-wrap">
@@ -71,12 +121,12 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 if not fetch[5] is None:
                         oldMessage = fetch[5]
                 if not fetch[6] is None:
-                        oldAttachments = fetch[6]
+                        oldAttachments = parseUrls(json.loads(fetch[6]))
                 elif isEdited and message.find("youtu") != -1:
                         row = None
                         return
                 if not fetch[8] is None:
-                        fwd = fetch[8]
+                        fwd = json.loads(fetch[8])
                 date = time.ctime(fetch[7])
                 row+="""{}</td><td>""".format(str(message_id))
                 if fetch[0] > 2000000000:
@@ -91,124 +141,30 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
 <a href='https://vk.com/id{}' target="_blank">{}</a>
 </td>""".format(str(fetch[2]),user_name)
                 if isEdited:
-                        row+="<td><b>Старое </b><br />"
+                        row+="""<td width="50%"><b>Старое</b><br />"""
                         if oldMessage != "":
-                                row+="<br />".join(oldMessage.split("\n"))
+                                row+="<br />".join(oldMessage.split("\n"))+"<br />"
                         if oldAttachments != "":
-                                oldAttachments=json.loads(oldAttachments)
-                                if oldMessage != "":
-                                        row+="<br />"
-                                row+="""
-<div id="{0}_{1}_old" style="display: table;">
-        <button id="{0}_{1}_old" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>""".format(message_id,timestamp)
-                                for i in range(oldAttachments['count']):
-                                        urlSplit = oldAttachments['urls'][i].split(".")
-                                        if len(urlSplit) < 4: #Сниппет со стороннего сайта
-                                                row+="""<a href="{0}" target="_blank" hidden>{0}</a>""".format(oldAttachments['urls'][i])
-                                                continue
-                                        if len(urlSplit[3].split(",")) == 1:
-                                                urlSplit = urlSplit[3]
-                                                if urlSplit == "jpg":
-                                                        row+="""<img data-src="{}" hidden></img>""".format(oldAttachments['urls'][i])
-                                                if urlSplit == "mp3":
-                                                        row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
-                                        elif len(urlSplit[3].split(",")) == 2:
-                                                urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
-                                                row+="""
-<a href="{}" target="_blank" hidden>Видео
-        <img src="{}" loading="lazy"></img>
-</a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
-                                        else:
-                                                row+="""<a href="{}" target="_blank" hidden>Документ</a>""".format(oldAttachments['urls'][i])
-                                row+="</div>"
+                                row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
                         if fwd != "":
-                                if oldMessage != "" or oldAttachments != "":
-                                        row+="<br />"
-                                row+="""
-<div id="{0}_{1}_old_fwd" style="display: table;">
-        <button id="{0}_{1}_old_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>""".format(message_id,timestamp)
-                                row+="<br />".join("&nbsp;".join(fwd.split(" ")).split("\n"))
-                                row+="</p></div>"
-                        row+="</td><td><b>Новое </b><br />"
+                                row+="<b>Пересланное</b><br />"+fwdParse(fwd)
+                        row+="""</td><td width="50%"><b>Новое</b><br />"""
                         if message != "":
-                                row+="<br />".join(message.split("\n"))
+                                row+="<br />".join(message.split("\n"))+"<br />"
                         if not attachments is None:
-                                attachments=json.loads(attachments)
-                                if message != "":
-                                        row+="<br />"
-                                row+="""
-<div id="{0}_{1}_new" style="display: table;">
-        <button id="{0}_{1}_new" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>""".format(message_id,timestamp)
-                                for i in range(attachments['count']):
-                                        urlSplit = attachments['urls'][i].split(".")
-                                        if len(urlSplit) < 4: #Сниппет со стороннего сайта
-                                                row+="""<a href="{0}" target="_blank" hidden>{0}</a>""".format(attachments['urls'][i])
-                                                continue
-                                        if len(urlSplit[3].split(",")) == 1:
-                                                urlSplit = urlSplit[3]
-                                                if urlSplit == "jpg":
-                                                        row+="""<img data-src="{}" hidden></img>""".format(attachments['urls'][i])
-                                                if urlSplit == "mp3":
-                                                        row+="""<audio src="{}" controls hidden></audio>""".format(attachments['urls'][i])
-                                        elif len(urlSplit[3].split(",")) == 2:
-                                                urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
-                                                row+="""
-                                                        <a href="{}" target="_blank" hidden>Видео
-                                                        <img src="{}" loading="lazy"></img>
-                                                </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
-                                        else:
-                                                row+="""<a href="{}" target="_blank" hidden>Документ</a>""".format(attachments['urls'][i])
-                                row+="</div>"
+                                row+="<b>Вложения</b><br />"+attachmentsParse(attachments)+"<br />"
                         if fwd != "":
-                                if message != "" or not attachments is None:
-                                        row+="<br />"
-                                row+="""
-<div id="{0}_{1}_new_fwd" style="display: table;">
-        <button id="{0}_{1}_new_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>""".format(message_id,timestamp)
-                                row+="<br />".join("&nbsp;".join(fwd.split(" ")).split("\n"))
-                                row+="</p></div>"
+                                row+="<b>Пересланное</b><br />"+fwdParse(fwd)
                         row+="</td><td>"
                         row+=date+"</td>"
                 else:
-                        row+="<td colspan='2'><b>Удалено </b><br />"
+                        row+="""<td width="100%" colspan='2'><b>Удалено</b><br />"""
                         if oldMessage != "":
-                                row+=oldMessage
+                                row+="<br />".join(oldMessage.split("\n"))+"<br />"
                         if oldAttachments != "":
-                                oldAttachments=json.loads(oldAttachments)
-                                if oldMessage != "":
-                                        row+="<br />"
-                                row+="""
-<div id="{0}_{1}_del" style="display: table;">
-        <button id="{0}_{1}_del" onClick="spoiler(this.id)" style="display: table-cell;">Вложения</button>""".format(message_id,timestamp)
-                                for i in range(oldAttachments['count']):
-                                        urlSplit = oldAttachments['urls'][i].split(".")
-                                        if len(urlSplit) < 4: #Сниппет со стороннего сайта
-                                                row+="""<a href="{0}" target="_blank" hidden>{0}</a>""".format(oldAttachments['urls'][i])
-                                                continue
-                                        if len(urlSplit[3].split(",")) == 1:
-                                                urlSplit = urlSplit[3]
-                                                if urlSplit == "jpg":
-                                                        row+="""<img data-src="{}" hidden></img>""".format(oldAttachments['urls'][i])
-                                                if urlSplit == "mp3":
-                                                        row+="""<audio src="{}" controls hidden></audio>""".format(oldAttachments['urls'][i])
-                                        elif len(urlSplit[3].split(",")) == 2:
-                                                urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
-                                                row+="""
-                                                <a href="{}" target="_blank" hidden>Видео
-                                                        <img src="{}" loading="lazy"></img>
-                                                </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
-                                        else:
-                                                row+="""<a href="{}" target="_blank" hidden>Документ</a>""".format(oldAttachments['urls'][i])
-                                row+="</div>"
+                                row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
                         if fwd != "":
-                                if oldMessage != "" or oldAttachments != "":
-                                        row+="<br />"
-                                row+="""
-                                <div id="{0}_{1}_del_fwd" style="display: table;">
-                                        <button id="{0}_{1}_del_fwd" onClick="spoiler(this.id)" style="display: table-cell;">Пересланные</button><p hidden>
-                                """.format(message_id,timestamp)
-                                row+="<br />".join("&nbsp;".join(fwd.split(" ")).split("\n"))
-                                row+="</p></div>"
+                                row+="<b>Пересланное</b><br />"+fwdParse(fwd)
                         row+="</td><td>"
                         row+=date+"</td>"
         except BaseException as e:
@@ -218,13 +174,13 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
         finally:
                 if not row is None:
                         row+="</tr>"
-                        messagesDump = messagesDump[:1443]+row+messagesDump[1443:]
+                        messagesDump = messagesDump[:478]+row+messagesDump[478:]
                         if not attachments is None:
                                 attachments = json.dumps(attachments)
                 messagesActivities.write(messagesDump)
                 messagesActivities.close()
                 if isEdited:
-                        cursor.execute("""UPDATE messages SET message = ?, attachments = ? WHERE message_id = ?""", (message, attachments, message_id,))
+                        cursor.execute("""UPDATE messages SET message = ?, attachments = ? WHERE message_id = ?""", (message, attachmentsJ, message_id,))
                         conn.commit()
 
 
@@ -232,40 +188,43 @@ def getAttachments(message_id):
         attachments = vk_session.method("messages.getById",{"message_ids":event.message_id})['items'][0]
         fwd_messages = None
         try:
-                if attachments['fwd_messages'] == []:
-                        fwd_messages = json.dumps(attachments['reply_message'],indent=1,ensure_ascii=False,)
-                else:
-                        fwd_messages = json.dumps(attachments['fwd_messages'],indent=1,ensure_ascii=False,)
+                if attachments['fwd_messages'] != [] or attachments['reply_message'] != {}:
+                        if attachments['fwd_messages'] == []:
+                                fwd_messages = json.dumps([attachments['reply_message']],indent=1,ensure_ascii=False,)
+                        else:
+                                fwd_messages = json.dumps(attachments['fwd_messages'],indent=1,ensure_ascii=False,)
         except(KeyError):
                 pass
         attachments = attachments['attachments']
-        count = len(attachments)
-        urls = {'count': count, 'urls':[]}
-        for i in range(count):
-                type = attachments[i]['type']
-                if type == 'photo':
-                        urls['urls'].append(attachments[i][type]['sizes'][len(attachments[i][type]['sizes'])-1]['url'])
-                elif type == 'sticker' or type == "gift":
-                        return "skip", None
-                elif type == 'video':
-                        urls['urls'].append(attachments[i][type]['photo_320']+","+str(attachments[i][type]['owner_id'])+"_"+str(attachments[i][type]['id'])+"_"+str(attachments[i][type]['access_key']))
-                elif type == 'audio_message':
-                        urls['urls'].append(attachments[i][type]['link_mp3'])
-                elif type == 'poll':
-                        urls['count']-=1
-                elif type == 'wall':
-                        urls['urls'].append("https://vk.com/wall"+str(attachments[i][type]['from_id'])+"_"+str(attachments[i][type]['id']))
-                else:
-                        urls['urls'].append(attachments[i][type]['url'])
-        if urls['count'] == 0:
-                urls = None
+        if attachments == []:
+                attachments = None
         else:
-                urls = json.dumps(urls,ensure_ascii=False,)
-        return urls,fwd_messages
+                attachments = json.dumps(attachments,indent=1,ensure_ascii=False,)
+        return attachments,fwd_messages
+
+def parseUrls(attachments):
+        urls = []
+        for i in attachments:
+                type = i['type']
+                if type == 'photo':
+                        urls.append(i[type]['sizes'][-1]['url'])
+                elif type == 'sticker' or type == "gift":
+                        urls.append(i[type]['images'][0]['url'])
+                elif type == 'video':
+                        urls.append(i[type]['photo_320']+","+str(i[type]['owner_id'])+"_"+str(i[type]['id'])+"_"+str(i[type]['access_key']))
+                elif type == 'audio_message':
+                        urls.append(i[type]['link_mp3'])
+                elif type == 'poll':
+                        pass
+                elif type == 'wall':
+                        urls.append("https://vk.com/wall"+str(i[type]['from_id'])+"_"+str(i[type]['id']))
+                else:
+                        urls.append(i[type]['url'])
+        return urls
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
-longpoll = VkLongPoll(vk_session, wait=10, mode=2)
+longpoll = VkLongPoll(vk_session, wait=30, mode=2)
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 
@@ -339,44 +298,39 @@ flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 account_id = vk_session.method("users.get")[0]['id']
 
 for event in longpoll.listen():
-        peer_name = user_name = message = urls = fwd_messages = None    
+        peer_name = user_name = message = attachments = fwd_messages = None    
         try:
                 if event.type == VkEventType.MESSAGE_NEW:
                         if event.attachments != {}:
-                                urls,fwd_messages = getAttachments(event.message_id)
-                                if urls == "skip":
-                                        continue
+                                attachments,fwd_messages = getAttachments(event.message_id)
                         else:
-                                urls = None
+                                attachments = None
                         if event.from_chat:
                                 cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (event.peer_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
-                                        name = vk_session.method("messages.getChat",{"chat_id":event.peer_id-2000000000})["title"]
-                                        cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (event.peer_id,name,))
+                                        peer_name = vk_session.method("messages.getChat",{"chat_id":event.peer_id-2000000000})["title"]
+                                        cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (event.peer_id,peer_name,))
                                         conn.commit()
-                                        peer_name = name
                                 else:
                                         peer_name = fetch[1]
                                 cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
-                                        name = vk_session.method("users.get",{"user_id":event.user_id})[0]
-                                        name = name['first_name'] + " " + name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,name,))
+                                        user_name = vk_session.method("users.get",{"user_id":event.user_id})[0]
+                                        user_name = user_name['first_name'] + " " + user_name['last_name']
+                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,user_name,))
                                         conn.commit()
-                                        user_name = name
                                 else:
                                         user_name = fetch[1]        
                         elif event.from_user:
                                 cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.peer_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
-                                        name = vk_session.method("users.get",{"user_id":event.peer_id})[0]
-                                        name = name['first_name'] + " " + name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.peer_id,name,))
+                                        peer_name = vk_session.method("users.get",{"user_id":event.peer_id})[0]
+                                        peer_name = peer_name['first_name'] + " " + peer_name['last_name']
+                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.peer_id,peer_name,))
                                         conn.commit()
-                                        peer_name = name
                                 else:
                                         peer_name = fetch[1]
                                 if event.from_me:
@@ -384,11 +338,10 @@ for event in longpoll.listen():
                                 cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (event.user_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
-                                        name = vk_session.method("users.get",{"user_id":event.user_id})[0]
-                                        name = name['first_name'] + " " + name['last_name']
-                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,name,))
+                                        user_name = vk_session.method("users.get",{"user_id":event.user_id})[0]
+                                        user_name = user_name['first_name'] + " " + user_name['last_name']
+                                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (event.user_id,user_name,))
                                         conn.commit()
-                                        user_name = name
                                 else:
                                         user_name = fetch[1]
                         else:
@@ -397,7 +350,7 @@ for event in longpoll.listen():
                                 message = event.message
                         else:
                                 message = None
-                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(event.peer_id,peer_name,event.user_id,user_name,event.message_id,message,urls,event.timestamp,fwd_messages,))
+                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(event.peer_id,peer_name,event.user_id,user_name,event.message_id,message,attachments,event.timestamp,fwd_messages,))
                         conn.commit()
                 elif event.type == VkEventType.MESSAGE_EDIT:
                         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
@@ -427,6 +380,8 @@ for event in longpoll.listen():
                                         messageFlags.append(i)
                         if (131072 in messageFlags or 128 in messageFlags):
                                 activityReport(event.message_id, int(time.time()))
+                                cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
+                                conn.commit()
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                 f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n")
