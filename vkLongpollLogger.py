@@ -228,14 +228,14 @@ def parseUrls(attachments):
                 type = i['type']
                 if type == 'photo':
                         urls.append(i[type]['sizes'][-1]['url'])
-                elif type == 'sticker' or type == "gift":
-                        urls.append(i[type]['images'][0]['url'])
-                elif type == 'video':
-                        urls.append(i[type]['photo_320']+","+str(i[type]['owner_id'])+"_"+str(i[type]['id'])+"_"+str(i[type]['access_key']))
                 elif type == 'audio_message':
                         urls.append(i[type]['link_mp3'])
-                elif type == 'poll':
-                        pass
+                elif type == 'sticker':
+                        urls.append(i[type]['images'][0]['url'])
+                elif type == "gift" or type == 'poll':
+                        continue
+                elif type == 'video':
+                        urls.append(i[type]['photo_320']+","+str(i[type]['owner_id'])+"_"+str(i[type]['id'])+"_"+str(i[type]['access_key']))
                 elif type == 'wall':
                         urls.append("https://vk.com/wall"+str(i[type]['from_id'])+"_"+str(i[type]['id']))
                 else:
@@ -399,8 +399,6 @@ for event in longpoll.listen():
                                 conn.commit()
                         if event.attachments != {}:
                                 attachments,fwd_messages = getAttachments(event.message_id)
-                        else:
-                                attachments = None
                         activityReport(event.message_id, event.timestamp, True, attachments, event.text)
                 elif event.type == VkEventType.MESSAGE_FLAGS_SET:
                         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
