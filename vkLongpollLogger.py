@@ -324,7 +324,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         conn.commit()
 
 def getAttachments(message_id):
-        attachments = vk_session.method("messages.getById",{"message_ids":event.message_id})['items'][0]
+        attachments = vk_session.method("messages.getById",{"message_ids":message_id})['items'][0]
         fwd_messages = None
         try:
                 if attachments['fwd_messages'] != [] or attachments['reply_message'] != {}:
