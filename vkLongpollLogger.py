@@ -9,21 +9,141 @@ import time
 import sys
 
 ACCESS_TOKEN = ""
+
 if len(sys.argv)>1 :
         ACCESS_TOKEN = sys.argv[1]
 if ACCESS_TOKEN == "":
         raise Exception("Не задан ACCESS_TOKEN")
+cwd = os.path.dirname(os.path.abspath(__file__))
+
+if not os.path.exists(os.path.join(cwd, "messages.db")):
+        conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute("""CREATE TABLE "messages" (
+        "peer_id"	INTEGER NOT NULL,
+        "peer_name"	TEXT NOT NULL,
+        "user_id"	INTEGER NOT NULL,
+        "user_name"	TEXT NOT NULL,
+        "message_id"	INTEGER NOT NULL UNIQUE,
+        "message"	TEXT,
+        "attachments"	TEXT,
+        "timestamp"	INTEGER NOT NULL,
+        "fwd_messages"  TEXT
+)""")
+        cursor.execute("""CREATE TABLE "chats_cache" (
+        "chat_id"	INTEGER NOT NULL UNIQUE,
+        "chat_name"	TEXT NOT NULL
+)""")
+        cursor.execute("""CREATE TABLE "users_cache" (
+        "user_id"	INTEGER NOT NULL UNIQUE,
+        "user_name"	TEXT NOT NULL
+)""")
+        conn.commit()
+else:
+        conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
+        cursor = conn.cursor()
+
+def bgWatcher():
+        cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (int(time.time())-86400,))
+        conn.commit()
 
 def interrupt_handler(signum, frame):
         conn.commit()
         cursor.close()
         tableWatcher.cancel()
         os._exit(0)
+
+tableWatcher = threading.Thread(target=bgWatcher)
+tableWatcher.start()
 signal.signal(signal.SIGINT, interrupt_handler)
 
-def bgWatcher():
-        cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (int(time.time())-86400,))
-        conn.commit()
+if not os.path.exists(os.path.join(cwd, "vkGetVideoLink.html")):
+        f = open(os.path.join(cwd, 'vkGetVideoLink.html'), 'w')
+        f.write("""<!DOCTYPE html>
+<html>
+        <body>
+                <input id="videos"></input>
+                <input type="submit" id="submit" value="Отправить">
+                <script>
+                        let ACCESS_TOKEN = '{}';
+                        document.getElementById('submit').onclick = function() {{
+                        document.getElementById('submit').disabled = true;
+                        var script = document.createElement('SCRIPT');
+                        script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + videos.value + "&callback=callbackFunc";
+                        document.getElementsByTagName("head")[0].appendChild(script);
+                        }}
+                        function callbackFunc(result) {{
+                        var frame = document.createElement('iframe');
+                        frame.src = result.response.items[0]["player"];
+                        frame.style = "position:absolute;top:0;left:0;width:100%;height:100%;"
+                        document.getElementsByTagName("div")[0].appendChild(frame);
+                        }}
+                        let videos = document.getElementById('videos');
+                        videos.value = document.location.search.slice(1);
+                        if (videos.value != "") document.getElementById('submit').click()
+                </script>
+                <div style="position:relative;padding-top:56.25%;"></div>
+        </body>
+</html>""".format(ACCESS_TOKEN))
+        f.close()
+
+def main():
+        for event in longpoll.listen():
+                peer_name = user_name = message = attachments = fwd_messages = None    
+                try:
+                        if event.type == VkEventType.MESSAGE_NEW:
+                                if event.from_user:
+                                        if event.from_me:
+                                                event.user_id = account_id
+                                elif event.from_group:
+                                        if event.from_me:
+                                                event.user_id = account_id
+                                        else:
+                                                event.user_id = event.peer_id
+                                cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
+                                conn.commit()
+                        elif event.type == VkEventType.MESSAGE_EDIT:
+                                cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
+                                fetch = cursor.fetchone()
+                                if fetch is None:
+                                        if event.from_user:
+                                                if event.from_me:
+                                                        event.user_id = account_id
+                                        elif event.from_group:
+                                                if event.from_me:
+                                                        event.user_id = account_id
+                                                else:
+                                                        event.user_id = event.peer_id
+                                        event.message='⚠️ '+event.message
+                                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
+                                        conn.commit()
+                                if event.attachments != {}:
+                                        attachments,fwd_messages = getAttachments(event.message_id)
+                                activityReport(event.message_id, event.timestamp, True, attachments, event.text)
+                        elif event.type == VkEventType.MESSAGE_FLAGS_SET:
+                                cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
+                                fetch = cursor.fetchone()
+                                if fetch is None:
+                                        continue
+                                if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может. Это ошибочно расценивается, как удаление сообщения.
+                                        mask = event.mask
+                                else:
+                                        continue
+                                messageFlags = []
+                                for i in flags:
+                                        mask-=i
+                                        if mask < 0:
+                                                mask+=i
+                                        else:
+                                                messageFlags.append(i)
+                                if (131072 in messageFlags or 128 in messageFlags):
+                                        activityReport(event.message_id, int(time.time()))
+                                        cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
+                                        conn.commit()
+                except BaseException as e:
+                        f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
+                        f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
+                        f.close()
 
 def fwdParse(fwd):
         html="""<table border="1" width="100%" frame="hsides" style="margin-left:5px;">"""
@@ -203,7 +323,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         cursor.execute("""UPDATE messages SET message = ?, attachments = ? WHERE message_id = ?""", (message, attachmentsJ, message_id,))
                         conn.commit()
 
-
 def getAttachments(message_id):
         attachments = vk_session.method("messages.getById",{"message_ids":event.message_id})['items'][0]
         fwd_messages = None
@@ -291,136 +410,16 @@ def parseEvent(message_id,peer_id,user_id,message,attachments,from_chat,from_use
         if message == "":
                 message = None
         return peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages
-        
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
 longpoll = VkLongPoll(vk_session, wait=30, mode=2)
 
-cwd = os.path.dirname(os.path.abspath(__file__))
-
-if not os.path.exists(os.path.join(cwd, "messages.db")):
-        conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
-        cursor = conn.cursor()
-        cursor.execute("""CREATE TABLE "messages" (
-        "peer_id"	INTEGER NOT NULL,
-        "peer_name"	TEXT NOT NULL,
-        "user_id"	INTEGER NOT NULL,
-        "user_name"	TEXT NOT NULL,
-        "message_id"	INTEGER NOT NULL UNIQUE,
-        "message"	TEXT,
-        "attachments"	TEXT,
-        "timestamp"	INTEGER NOT NULL,
-        "fwd_messages"  TEXT
-)""")
-        cursor.execute("""CREATE TABLE "chats_cache" (
-        "chat_id"	INTEGER NOT NULL UNIQUE,
-        "chat_name"	TEXT NOT NULL
-)""")
-        cursor.execute("""CREATE TABLE "users_cache" (
-        "user_id"	INTEGER NOT NULL UNIQUE,
-        "user_name"	TEXT NOT NULL
-)""")
-        conn.commit()
-else:
-        conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
-        cursor = conn.cursor()
-
-tableWatcher = threading.Thread(target=bgWatcher)
-tableWatcher.start()
-
-if not os.path.exists(os.path.join(cwd, "vkGetVideoLink.html")):
-        f = open(os.path.join(cwd, 'vkGetVideoLink.html'), 'w')
-        f.write("""<!DOCTYPE html>
-<html>
-        <body>
-                <input id="videos"></input>
-                <input type="submit" id="submit" value="Отправить">
-                <script>
-                        let ACCESS_TOKEN = '{}';
-                        document.getElementById('submit').onclick = function() {{
-                        document.getElementById('submit').disabled = true;
-                        var script = document.createElement('SCRIPT');
-                        script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + videos.value + "&callback=callbackFunc";
-                        document.getElementsByTagName("head")[0].appendChild(script);
-                        }}
-                        function callbackFunc(result) {{
-                        var frame = document.createElement('iframe');
-                        frame.src = result.response.items[0]["player"];
-                        frame.style = "position:absolute;top:0;left:0;width:100%;height:100%;"
-                        document.getElementsByTagName("div")[0].appendChild(frame);
-                        }}
-                        let videos = document.getElementById('videos');
-                        videos.value = document.location.search.slice(1);
-                        if (videos.value != "") document.getElementById('submit').click()
-                </script>
-                <div style="position:relative;padding-top:56.25%;"></div>
-        </body>
-</html>""".format(ACCESS_TOKEN))
-        f.close()
-
-
+flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
+account_id = vk_session.method("users.get")[0]['id']
 
 tableWatcher.join()
 tableWatcher = threading.Timer(3600,bgWatcher)
 tableWatcher.start()
-flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 
-account_id = vk_session.method("users.get")[0]['id']
-
-for event in longpoll.listen():
-        peer_name = user_name = message = attachments = fwd_messages = None    
-        try:
-                if event.type == VkEventType.MESSAGE_NEW:
-                        if event.from_user:
-                                if event.from_me:
-                                        event.user_id = account_id
-                        elif event.from_group:
-                                if event.from_me:
-                                        event.user_id = account_id
-                                else:
-                                        event.user_id = event.peer_id
-                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
-                        conn.commit()
-                elif event.type == VkEventType.MESSAGE_EDIT:
-                        cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
-                        fetch = cursor.fetchone()
-                        if fetch is None:
-                                if event.from_user:
-                                        if event.from_me:
-                                                event.user_id = account_id
-                                elif event.from_group:
-                                        if event.from_me:
-                                                event.user_id = account_id
-                                        else:
-                                                event.user_id = event.peer_id
-                                event.message='⚠️ '+event.message
-                                cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
-                                conn.commit()
-                        if event.attachments != {}:
-                                attachments,fwd_messages = getAttachments(event.message_id)
-                        activityReport(event.message_id, event.timestamp, True, attachments, event.text)
-                elif event.type == VkEventType.MESSAGE_FLAGS_SET:
-                        cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
-                        fetch = cursor.fetchone()
-                        if fetch is None:
-                                continue
-                        if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может. Это ошибочно расценивается, как удаление сообщения.
-                                mask = event.mask
-                        else:
-                                continue
-                        messageFlags = []
-                        for i in flags:
-                                mask-=i
-                                if mask < 0:
-                                        mask+=i
-                                else:
-                                        messageFlags.append(i)
-                        if (131072 in messageFlags or 128 in messageFlags):
-                                activityReport(event.message_id, int(time.time()))
-                                cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
-                                conn.commit()
-        except BaseException as e:
-                f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
-                f.close()
+main()
