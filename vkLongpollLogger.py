@@ -61,27 +61,35 @@ if not os.path.exists(os.path.join(cwd, "vkGetVideoLink.html")):
         f = open(os.path.join(cwd, 'vkGetVideoLink.html'), 'w')
         f.write("""<!DOCTYPE html>
 <html>
+        <head>
+                <meta charset="utf-8">
+        </head>
         <body>
                 <input id="videos"></input>
                 <input type="submit" id="submit" value="Отправить">
                 <script>
                         let ACCESS_TOKEN = '{}';
                         document.getElementById('submit').onclick = function() {{
-                        document.getElementById('submit').disabled = true;
-                        var script = document.createElement('SCRIPT');
-                        script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + videos.value + "&callback=callbackFunc";
-                        document.getElementsByTagName("head")[0].appendChild(script);
+                                document.getElementById('submit').disabled = true;
+                                var script = document.createElement('SCRIPT');
+                                script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + videos.value + "&callback=callbackFunc";
+                                document.getElementsByTagName("head")[0].appendChild(script);
                         }}
                         function callbackFunc(result) {{
-                        var frame = document.createElement('iframe');
-                        frame.src = result.response.items[0]["player"];
-                        frame.style = "position:absolute;top:0;left:0;width:100%;height:100%;"
-                        document.getElementsByTagName("div")[0].appendChild(frame);
+                                var link = document.createElement('a');
+                                link.href = "https://vk.com/dev/video.get?params[videos]=" + videos.value + "&params[count]=2&params[offset]=-1";
+                                link.innerText = videos.value;
+                                var frame = document.createElement('iframe');
+                                frame.src = result.response.items[0]["player"];
+                                frame.style = "position:absolute;top:0;left:0;width:100%;height:100%;";
+                                document.getElementsByTagName("div")[0].appendChild(link);
+                                document.getElementsByTagName("div")[1].appendChild(frame);
                         }}
                         let videos = document.getElementById('videos');
                         videos.value = document.location.search.slice(1);
                         if (videos.value != "") document.getElementById('submit').click()
                 </script>
+                <div><p>Если видео не проигрывается, прямую ссылку можно получить через api:</p></div>
                 <div style="position:relative;padding-top:56.25%;"></div>
         </body>
 </html>""".format(ACCESS_TOKEN))
@@ -138,36 +146,10 @@ def main():
                                                 messageFlags.append(i)
                                 if (131072 in messageFlags or 128 in messageFlags):
                                         activityReport(event.message_id, int(time.time()))
-                                        cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
-                                        conn.commit()
                 except BaseException as e:
                         f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                         f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
                         f.close()
-
-def fwdParse(fwd):
-        html="""<table border="1" width="100%" frame="hsides" style="margin-left:5px;">"""
-        for i in fwd:
-                user_name = getUserName(i['from_id'])
-                if i['from_id'] < 0:
-                        html+="""<tr><td>
-<a href='https://vk.com/public{}' target="_blank">{}</a>
-</td></tr>""".format(-i['from_id'],user_name)
-                else:
-                        html+="""<tr><td>
-<a href='https://vk.com/id{}' target="_blank">{}</a>
-</td></tr>""".format(i['from_id'],user_name)
-                html+="<tr><td>"+"<br />".join(i['text'].split("\n"))+"<br />"
-                if i['attachments'] != []:
-                        html+=attachmentsParse(parseUrls(i['attachments']))
-                if 'fwd_messages' in i:
-                        html+=fwdParse(i['fwd_messages'])
-                if 'reply_message' in i:
-                        html+=fwdParse([i['reply_message']])
-                html+="</td></tr>"
-                html+="<tr><td>{}</td></tr>".format(time.ctime(i['date']))
-        html+="</table>"
-        return html
 
 def attachmentsParse(urls):
     html="""<div>"""
@@ -195,6 +177,118 @@ def attachmentsParse(urls):
                     html+="""<a href="{}" target="_blank">Документ</a>""".format(i)
     html+="</div>"
     return html
+
+def getAttachments(message_id):
+        attachments = vk_session.method("messages.getById",{"message_ids":message_id})['items'][0]
+        fwd_messages = None
+        try:
+                if attachments['fwd_messages'] != [] or attachments['reply_message'] != {}:
+                        if attachments['fwd_messages'] == []:
+                                fwd_messages = json.dumps([attachments['reply_message']],indent=1,ensure_ascii=False,)
+                        else:
+                                fwd_messages = json.dumps(attachments['fwd_messages'],indent=1,ensure_ascii=False,)
+        except(KeyError):
+                pass
+        attachments = attachments['attachments']
+        if attachments == []:
+                attachments = None
+        else:
+                attachments = json.dumps(attachments,indent=1,ensure_ascii=False,)
+        return attachments,fwd_messages
+
+def parseUrls(attachments):
+        urls = []
+        for i in attachments:
+                type = i['type']
+                if type == 'photo':
+                        urls.append(i[type]['sizes'][-1]['url'])
+                elif type == 'audio_message':
+                        urls.append(i[type]['link_mp3'])
+                elif type == 'sticker':
+                        urls.append(i[type]['images'][0]['url'])
+                elif type == "gift" or type == 'poll':
+                        continue
+                elif type == 'video':
+                        urls.append(i[type]['photo_320']+","+str(i[type]['owner_id'])+"_"+str(i[type]['id'])+"_"+str(i[type]['access_key']))
+                elif type == 'wall':
+                        urls.append("https://vk.com/wall"+str(i[type]['from_id'])+"_"+str(i[type]['id']))
+                else:
+                        urls.append(i[type]['url'])
+        return urls
+
+def getUserName(id):
+        if id > 2000000000:
+                cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (id,))
+                fetch = cursor.fetchone()
+                if fetch is None:
+                        name = vk_session.method("messages.getChat",{"chat_id":id-2000000000})["title"]
+                        cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id,name,))
+                        conn.commit()
+                else:
+                        name = fetch[1]
+        elif id < 0:
+                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
+                fetch = cursor.fetchone()
+                if fetch is None:
+                        name = vk_session.method("groups.getById",{"group_id":-id})[0]['name']
+                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
+                        conn.commit()
+                else:
+                        name = fetch[1]
+        else:
+                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
+                fetch = cursor.fetchone()
+                if fetch is None:
+                        name = vk_session.method("users.get",{"user_id":id})[0]
+                        name = name['first_name'] + " " + name['last_name']
+                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
+                        conn.commit()
+                else:
+                        name = fetch[1]
+        return name
+
+def parseEvent(message_id,peer_id,user_id,message,attachments,from_chat,from_user,from_group,timestamp):
+        if attachments != {}:
+                attachments,fwd_messages = getAttachments(message_id)
+        else:
+                attachments = None
+                fwd_messages = None
+        if from_chat:
+                peer_name = getUserName(peer_id)
+                user_name = getUserName(user_id)      
+        elif from_user:
+                peer_name = getUserName(peer_id)
+                user_name = getUserName(user_id)
+        elif from_group:
+                peer_name = getUserName(peer_id)
+                user_name = getUserName(user_id)
+        if message == "":
+                message = None
+        return peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages
+
+def fwdParse(fwd):
+        html="""<table border="1" width="100%" frame="hsides" style="margin-left:5px;">"""
+        for i in fwd:
+                user_name = getUserName(i['from_id'])
+                if i['from_id'] < 0:
+                        html+="""<tr><td>
+<a href='https://vk.com/public{}' target="_blank">{}</a>
+</td></tr>""".format(-i['from_id'],user_name)
+                else:
+                        html+="""<tr><td>
+<a href='https://vk.com/id{}' target="_blank">{}</a>
+</td></tr>""".format(i['from_id'],user_name)
+                html+="<tr><td>"+"<br />".join(i['text'].split("\n"))+"<br />"
+                if i['attachments'] != []:
+                        html+=attachmentsParse(parseUrls(i['attachments']))
+                if 'fwd_messages' in i:
+                        html+=fwdParse(i['fwd_messages'])
+                if 'reply_message' in i:
+                        html+=fwdParse([i['reply_message']])
+                html+="</td></tr>"
+                html+="<tr><td>{}</td></tr>".format(time.ctime(i['date']))
+        html+="</table>"
+        return html
 
 def activityReport(message_id, timestamp, isEdited=False, attachments=None, message=""):
         try:
@@ -322,94 +416,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 if isEdited:
                         cursor.execute("""UPDATE messages SET message = ?, attachments = ? WHERE message_id = ?""", (message, attachmentsJ, message_id,))
                         conn.commit()
-
-def getAttachments(message_id):
-        attachments = vk_session.method("messages.getById",{"message_ids":message_id})['items'][0]
-        fwd_messages = None
-        try:
-                if attachments['fwd_messages'] != [] or attachments['reply_message'] != {}:
-                        if attachments['fwd_messages'] == []:
-                                fwd_messages = json.dumps([attachments['reply_message']],indent=1,ensure_ascii=False,)
-                        else:
-                                fwd_messages = json.dumps(attachments['fwd_messages'],indent=1,ensure_ascii=False,)
-        except(KeyError):
-                pass
-        attachments = attachments['attachments']
-        if attachments == []:
-                attachments = None
-        else:
-                attachments = json.dumps(attachments,indent=1,ensure_ascii=False,)
-        return attachments,fwd_messages
-
-def parseUrls(attachments):
-        urls = []
-        for i in attachments:
-                type = i['type']
-                if type == 'photo':
-                        urls.append(i[type]['sizes'][-1]['url'])
-                elif type == 'audio_message':
-                        urls.append(i[type]['link_mp3'])
-                elif type == 'sticker':
-                        urls.append(i[type]['images'][0]['url'])
-                elif type == "gift" or type == 'poll':
-                        continue
-                elif type == 'video':
-                        urls.append(i[type]['photo_320']+","+str(i[type]['owner_id'])+"_"+str(i[type]['id'])+"_"+str(i[type]['access_key']))
-                elif type == 'wall':
-                        urls.append("https://vk.com/wall"+str(i[type]['from_id'])+"_"+str(i[type]['id']))
-                else:
-                        urls.append(i[type]['url'])
-        return urls
-
-def getUserName(id):
-        if id > 2000000000:
-                cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (id,))
-                fetch = cursor.fetchone()
-                if fetch is None:
-                        name = vk_session.method("messages.getChat",{"chat_id":id-2000000000})["title"]
-                        cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id,name,))
-                        conn.commit()
-                else:
-                        name = fetch[1]
-        elif id < 0:
-                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
-                fetch = cursor.fetchone()
-                if fetch is None:
-                        name = vk_session.method("groups.getById",{"group_id":-id})[0]['name']
-                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
-                        conn.commit()
-                else:
-                        name = fetch[1]
-        else:
-                cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
-                fetch = cursor.fetchone()
-                if fetch is None:
-                        name = vk_session.method("users.get",{"user_id":id})[0]
-                        name = name['first_name'] + " " + name['last_name']
-                        cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
-                        conn.commit()
-                else:
-                        name = fetch[1]
-        return name
-
-def parseEvent(message_id,peer_id,user_id,message,attachments,from_chat,from_user,from_group,timestamp):
-        if attachments != {}:
-                attachments,fwd_messages = getAttachments(message_id)
-        else:
-                attachments = None
-                fwd_messages = None
-        if from_chat:
-                peer_name = getUserName(peer_id)
-                user_name = getUserName(user_id)      
-        elif from_user:
-                peer_name = getUserName(peer_id)
-                user_name = getUserName(user_id)
-        elif from_group:
-                peer_name = getUserName(peer_id)
-                user_name = getUserName(user_id)
-        if message == "":
-                message = None
-        return peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
