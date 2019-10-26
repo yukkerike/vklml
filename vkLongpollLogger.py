@@ -278,7 +278,7 @@ def fwdParse(fwd):
                         html+="""<tr><td>
 <a href='https://vk.com/id{}' target="_blank">{}</a>
 </td></tr>""".format(i['from_id'],user_name)
-                html+="<tr><td>"+"<br />".join(i['text'].split("\n"))+"<br />"
+                html+="<tr><td>"+"&gt;".join("&lt;".join("<br />".join(i['text'].split("\n")).split("<")).split(">"))+"<br />"
                 if i['attachments'] != []:
                         html+=attachmentsParse(parseUrls(i['attachments']))
                 if 'fwd_messages' in i:
@@ -371,7 +371,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                         <b>Старое</b><br />
                                         """
                         if oldMessage != "":
-                                row+="<br />".join(oldMessage.split("\n"))+"<br />"
+                                row+="&gt;".join("&lt;".join("<br />".join(oldMessage.split("\n")).split("<")).split(">"))+"<br />"
                         if oldAttachments != "":
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
                         if fwd != "":
@@ -382,7 +382,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                         <b>Новое</b><br />
                                         """
                         if message != "":
-                                row+="<br />".join(message.split("\n"))+"<br />"
+                                row+="&gt;".join("&lt;".join("<br />".join(message.split("\n")).split("<")).split(">"))+"<br />"
                         if not attachments is None:
                                 row+="<b>Вложения</b><br />"+attachmentsParse(attachments)+"<br />"
                         if fwd != "":
@@ -394,7 +394,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 <td width="100%" colspan='2'><b>Удалено</b><br />
                                 """
                         if oldMessage != "":
-                                row+="<br />".join(oldMessage.split("\n"))+"<br />"
+                                row+="&gt;".join("&lt;".join("<br />".join(oldMessage.split("\n")).split("<")).split(">"))+"<br />"
                         if oldAttachments != "":
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
                         if fwd != "":
