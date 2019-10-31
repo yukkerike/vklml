@@ -9,6 +9,10 @@ import time
 import sys
 
 ACCESS_TOKEN = ""
+createIndex = False
+
+if createIndex:
+        from updateIndex import updateIndex
 
 if len(sys.argv)>1 :
         ACCESS_TOKEN = sys.argv[1]
@@ -17,7 +21,7 @@ if ACCESS_TOKEN == "":
 cwd = os.path.dirname(os.path.abspath(__file__))
 
 if not os.path.exists(os.path.join(cwd, "messages.db")):
-        conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
+        conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False,timeout=15.0)
         cursor = conn.cursor()
         cursor.execute("""CREATE TABLE "messages" (
         "peer_id"	INTEGER NOT NULL,
@@ -40,12 +44,13 @@ if not os.path.exists(os.path.join(cwd, "messages.db")):
 )""")
         conn.commit()
 else:
-        conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False)
+        conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False,timeout=15.0)
         cursor = conn.cursor()
 
 def bgWatcher():
         cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (int(time.time())-86400,))
         conn.commit()
+        threading.Timer(18000,bgWatcher).start()
 
 def interrupt_handler(signum, frame):
         conn.commit()
@@ -57,8 +62,11 @@ tableWatcher = threading.Thread(target=bgWatcher)
 tableWatcher.start()
 signal.signal(signal.SIGINT, interrupt_handler)
 
-if not os.path.exists(os.path.join(cwd, "vkGetVideoLink.html")):
-        f = open(os.path.join(cwd, 'vkGetVideoLink.html'), 'w')
+if not os.path.exists(os.path.join(cwd, "mesAct")):
+        os.makedirs(os.path.join(cwd, "mesAct"))
+
+if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
+        f = open(os.path.join(cwd, "mesAct",  'vkGetVideoLink.html'), 'w')
         f.write("""<!DOCTYPE html>
 <html>
         <head>
@@ -172,7 +180,7 @@ def attachmentsParse(urls):
                     html+="""
     <a href="{}" target="_blank">Видео
     <img src="{}"/>
-    </a>""".format("../vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
+    </a>""".format("./vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
             else:
                     html+="""<a href="{}" target="_blank">Документ</a>""".format(i)
     html+="</div>"
@@ -291,6 +299,8 @@ def fwdParse(fwd):
         return html
 
 def activityReport(message_id, timestamp, isEdited=False, attachments=None, message=""):
+        if createIndex:
+                threading.Thread(target=updateIndex,args=(cwd,)).start()
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = fwd = ""
                 attachmentsJ = attachments
@@ -299,8 +309,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 row = """
                         <tr>
                                 <td>"""
-                if not os.path.exists(os.path.join(cwd, "mesAct")):
-                        os.makedirs(os.path.join(cwd, "mesAct"))
                 if not os.path.exists(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html")):
                         f = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
                         f.write("""
@@ -425,7 +433,6 @@ flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 account_id = vk_session.method("users.get")[0]['id']
 
 tableWatcher.join()
-tableWatcher = threading.Timer(3600,bgWatcher)
-tableWatcher.start()
+tableWatcher = threading.Timer(18000,bgWatcher).start()
 
 main()
