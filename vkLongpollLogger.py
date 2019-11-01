@@ -158,6 +158,8 @@ def main():
                         f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                         f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
                         f.close()
+                except sqlite3.Error:
+                        os._exit(0)
 
 def attachmentsParse(urls):
     html="""<div>"""
