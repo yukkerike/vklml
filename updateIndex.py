@@ -1,14 +1,33 @@
 import time
 import os
-def updateIndex(cwd):
+def updateIndex(cwd,prevDate):
         date = time.strftime("%d%m%y",time.localtime())
-        if not os.path.exists(os.path.join(cwd, "mesAct",  "index.html")):
-                generateIndex(cwd, date)
-        else:
-                f = open(os.path.join(cwd, "mesAct",  'index.html'), 'r')
-                if f.read()[4:9] != date[2:]:
-                        f.close()
+        if prevDate == 0:
+                if not os.path.exists(os.path.join(cwd, "mesAct",  "index.html")):
                         generateIndex(cwd, date)
+                        return
+                else:
+                        f = open(os.path.join(cwd, "mesAct",  'index.html'), 'r')
+                        prevDate = f.read()[4:9]
+                        if prevDate != date[2:]:
+                                f.close()
+                                generateIndex(cwd, date)
+                        return
+        elif prevDate == 1:
+                if not os.path.exists(os.path.join(cwd, "mesAct",  "index.html")):
+                        generateIndex(cwd, date)
+                        return date[2:]
+                else:
+                        f = open(os.path.join(cwd, "mesAct",  'index.html'), 'r')
+                        prevDate = f.read()[4:9]
+                        if prevDate != date[2:]:
+                                f.close()
+                                generateIndex(cwd, date)
+                        return date[2:]
+        else:
+                if prevDate != date[2:]:
+                        generateIndex(cwd, date)
+                return date[2:]
 
 def generateIndex(cwd, date):
         f = open(os.path.join(cwd, "mesAct",  'index.html'), 'w')
@@ -64,4 +83,4 @@ if __name__ == "__main__":
         cwd = os.path.dirname(os.path.abspath(__file__))
         if not os.path.exists(os.path.join(cwd, "mesAct")):
                 os.makedirs(os.path.join(cwd, "mesAct"))
-        updateIndex(cwd)
+        b = updateIndex(cwd,0)

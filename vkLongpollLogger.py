@@ -13,6 +13,7 @@ createIndex = False
 
 if createIndex:
         from updateIndex import updateIndex
+        prevDate = 1
 
 if len(sys.argv)>1 :
         ACCESS_TOKEN = sys.argv[1]
@@ -25,9 +26,7 @@ if not os.path.exists(os.path.join(cwd, "messages.db")):
         cursor = conn.cursor()
         cursor.execute("""CREATE TABLE "messages" (
         "peer_id"	INTEGER NOT NULL,
-        "peer_name"	TEXT NOT NULL,
         "user_id"	INTEGER NOT NULL,
-        "user_name"	TEXT NOT NULL,
         "message_id"	INTEGER NOT NULL UNIQUE,
         "message"	TEXT,
         "attachments"	TEXT,
@@ -116,7 +115,7 @@ def main():
                                                 event.user_id = account_id
                                         else:
                                                 event.user_id = event.peer_id
-                                cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
+                                cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
                                 conn.commit()
                         elif event.type == VkEventType.MESSAGE_EDIT:
                                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
@@ -131,7 +130,7 @@ def main():
                                                 else:
                                                         event.user_id = event.peer_id
                                         event.message='⚠️ '+event.message
-                                        cursor.execute("""INSERT INTO messages(peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
+                                        cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
                                         conn.commit()
                                 if event.attachments != {}:
                                         attachments,fwd_messages = getAttachments(event.message_id)
@@ -263,18 +262,9 @@ def parseEvent(message_id,peer_id,user_id,message,attachments,from_chat,from_use
         else:
                 attachments = None
                 fwd_messages = None
-        if from_chat:
-                peer_name = getUserName(peer_id)
-                user_name = getUserName(user_id)      
-        elif from_user:
-                peer_name = getUserName(peer_id)
-                user_name = getUserName(user_id)
-        elif from_group:
-                peer_name = getUserName(peer_id)
-                user_name = getUserName(user_id)
         if message == "":
                 message = None
-        return peer_id,peer_name,user_id,user_name,message_id,message,attachments,timestamp,fwd_messages
+        return peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages
 
 def fwdParse(fwd):
         html="""<table border="1" width="100%" frame="hsides" style="margin-left:5px;">"""
@@ -302,7 +292,8 @@ def fwdParse(fwd):
 
 def activityReport(message_id, timestamp, isEdited=False, attachments=None, message=""):
         if createIndex:
-                threading.Thread(target=updateIndex,args=(cwd,)).start()
+                global prevDate
+                prevDate = updateIndex(cwd,prevDate)
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = fwd = ""
                 attachmentsJ = attachments
@@ -338,18 +329,18 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
                 fetch = cursor.fetchone()
-                peer_name = fetch[1]
-                user_name = fetch[3]
-                if not fetch[5] is None:
-                        oldMessage = fetch[5]
-                if not fetch[6] is None:
-                        oldAttachments = parseUrls(json.loads(fetch[6]))
+                peer_name = getUserName(fetch[0])
+                user_name = getUserName(fetch[1])
+                if not fetch[3] is None:
+                        oldMessage = str(fetch[3])
+                if not fetch[4] is None:
+                        oldAttachments = parseUrls(json.loads(fetch[4]))
                 elif isEdited and message.find("youtu") != -1:
                         row = None
                         return
-                if not fetch[8] is None:
-                        fwd = json.loads(fetch[8])
-                date = time.ctime(fetch[7])
+                if not fetch[6] is None:
+                        fwd = json.loads(fetch[6])
+                date = time.ctime(fetch[5])
                 row+="""{}</td>
                                 <td>""".format(str(message_id))
                 if fetch[0] > 2000000000:
@@ -367,14 +358,14 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                         <a href='https://vk.com/id{}' target="_blank">{}</a>
                                 </td>
                                 <td>""".format(str(fetch[0]),peer_name)
-                if fetch[2] < 0:
+                if fetch[1] < 0:
                         row+="""
                                         <a href='https://vk.com/public{}' target="_blank">{}</a>
-                                </td>""".format(str(-fetch[2]),peer_name)
+                                </td>""".format(str(-fetch[1]),peer_name)
                 else:
                         row+="""
                                         <a href='https://vk.com/id{}' target="_blank">{}</a>
-                                </td>""".format(str(fetch[2]),user_name)
+                                </td>""".format(str(fetch[1]),user_name)
                 if isEdited:
                         row+="""
                                 <td width="50%">
