@@ -1,7 +1,7 @@
 import time
 import os
 def updateIndex(cwd,prevDate):
-        date = time.strftime("%d%m%y",time.localtime())
+        date = time.strftime("%m%y",time.localtime())
         if prevDate == 0:
                 if not os.path.exists(os.path.join(cwd, "mesAct",  "index.html")):
                         generateIndex(cwd, date)
@@ -9,25 +9,25 @@ def updateIndex(cwd,prevDate):
                 else:
                         f = open(os.path.join(cwd, "mesAct",  'index.html'), 'r')
                         prevDate = f.read()[4:9]
-                        if prevDate != date[2:]:
+                        if prevDate != date:
                                 f.close()
                                 generateIndex(cwd, date)
                         return
         elif prevDate == 1:
                 if not os.path.exists(os.path.join(cwd, "mesAct",  "index.html")):
                         generateIndex(cwd, date)
-                        return date[2:]
+                        return date
                 else:
                         f = open(os.path.join(cwd, "mesAct",  'index.html'), 'r')
                         prevDate = f.read()[4:9]
-                        if prevDate != date[2:]:
+                        if prevDate != date:
                                 f.close()
                                 generateIndex(cwd, date)
-                        return date[2:]
+                        return date
         else:
-                if prevDate != date[2:]:
+                if prevDate != date:
                         generateIndex(cwd, date)
-                return date[2:]
+                return date
 
 def generateIndex(cwd, date):
         f = open(os.path.join(cwd, "mesAct",  'index.html'), 'w')
@@ -73,10 +73,11 @@ def generateIndex(cwd, date):
         </ul>
         <script>
                 list = document.getElementsByTagName("li")
-                for (i = 0; i < {1}; i++) list[i].removeAttribute("hidden");
+                var now = new Date()
+                for (i = 0; i < now.getDate(); i++) list[i].removeAttribute("hidden");
         </script>
 </body>
-</html>""".format(date[2:],date[:2]))
+</html>""".format(date))
         f.close()
 
 if __name__ == "__main__":
