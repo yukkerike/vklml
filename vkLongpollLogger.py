@@ -134,7 +134,7 @@ def main():
                                         conn.commit()
                                 if event.attachments != {}:
                                         attachments,fwd_messages = getAttachments(event.message_id)
-                                activityReport(event.message_id, event.timestamp, True, attachments, event.text)
+                                activityReport(event.message_id, event.timestamp, True, attachments, fwd_messages, event.text)
                         elif event.type == VkEventType.MESSAGE_FLAGS_SET:
                                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
                                 fetch = cursor.fetchone()
@@ -290,12 +290,12 @@ def fwdParse(fwd):
         html+="</table>"
         return html
 
-def activityReport(message_id, timestamp, isEdited=False, attachments=None, message=""):
+def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=None,  message=""):
         if createIndex:
                 global prevDate
                 prevDate = updateIndex(cwd,prevDate)
         try:
-                peer_name = user_name = oldMessage = oldAttachments = date = fwd = ""
+                peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = ""
                 attachmentsJ = attachments
                 if not attachments is None:
                         attachments = parseUrls(json.loads(attachments))
@@ -339,7 +339,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                         row = None
                         return
                 if not fetch[6] is None:
-                        fwd = json.loads(fetch[6])
+                        oldFwd = json.loads(fetch[6])
                 date = time.ctime(fetch[5])
                 row+="""{}</td>
                                 <td>""".format(str(message_id))
@@ -375,8 +375,8 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 row+="<br />".join(("&gt;".join("&lt;".join(oldMessage.split("<")).split(">"))).split("\n"))+"<br />"
                         if oldAttachments != "":
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
-                        if fwd != "":
-                                row+="<b>Пересланное</b><br />"+fwdParse(fwd)
+                        if oldFwd != "":
+                                row+="<b>Пересланное</b><br />"+fwdParse(oldFwd)
                         row+="""
                                 </td>
                                 <td width="50%">
@@ -386,7 +386,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 row+="<br />".join(("&gt;".join("&lt;".join(message.split("<")).split(">"))).split("\n"))+"<br />"
                         if not attachments is None:
                                 row+="<b>Вложения</b><br />"+attachmentsParse(attachments)+"<br />"
-                        if fwd != "":
+                        if not fwd is None:
                                 row+="<b>Пересланное</b><br />"+fwdParse(fwd)
                         row+="</td><td>"
                         row+=date+"</td>"
@@ -398,8 +398,8 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                                 row+="<br />".join(("&gt;".join("&lt;".join(oldMessage.split("<")).split(">"))).split("\n"))+"<br />"
                         if oldAttachments != "":
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
-                        if fwd != "":
-                                row+="<b>Пересланное</b><br />"+fwdParse(fwd)
+                        if oldFwd != "":
+                                row+="<b>Пересланное</b><br />"+fwdParse(oldFwd)
                         row+="</td>\n<td>"
                         row+=date+"</td>"
         except BaseException as e:
@@ -415,7 +415,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, mess
                 messagesActivities.write(messagesDump)
                 messagesActivities.close()
                 if isEdited:
-                        cursor.execute("""UPDATE messages SET message = ?, attachments = ? WHERE message_id = ?""", (message, attachmentsJ, message_id,))
+                        if message == "":
+                                message = None
+                        cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (message, attachmentsJ, fwd, message_id,))
                         conn.commit()
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
