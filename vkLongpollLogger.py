@@ -426,6 +426,5 @@ flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 account_id = vk_session.method("users.get")[0]['id']
 
 tableWatcher.join()
-tableWatcher = threading.Timer(18000,bgWatcher).start()
 
 main()
