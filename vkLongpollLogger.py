@@ -47,16 +47,29 @@ else:
         cursor = conn.cursor()
 
 def bgWatcher():
-        cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (int(time.time())-86400,))
-        conn.commit()
-        threading.Timer(18000,bgWatcher).start()
+        while True:
+                global stop
+                while True:
+                        if stop == True:
+                                time.sleep(2)
+                        else:
+                                break
+                stop = True
+                cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (time.time()-86400,))
+                conn.commit()
+                stop = False
+                time.sleep(86400)
 
 def interrupt_handler(signum, frame):
         conn.commit()
         cursor.close()
-        tableWatcher.cancel()
+        try:
+                tableWatcher.cancel()
+        except AttributeError:
+                pass
         os._exit(0)
 
+stop = False
 tableWatcher = threading.Thread(target=bgWatcher)
 tableWatcher.start()
 signal.signal(signal.SIGINT, interrupt_handler)
@@ -104,6 +117,13 @@ if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
 
 def main():
         for event in longpoll.listen():
+                global stop
+                while True:
+                        if stop == True:
+                                time.sleep(2)
+                        else:
+                                break
+                stop = True
                 peer_name = user_name = message = attachments = fwd_messages = None    
                 try:
                         if event.type == VkEventType.MESSAGE_NEW:
@@ -152,13 +172,12 @@ def main():
                                         else:
                                                 messageFlags.append(i)
                                 if (131072 in messageFlags or 128 in messageFlags):
-                                        activityReport(event.message_id, int(time.time()))
+                                        activityReport(event.message_id, time.time())
                 except BaseException as e:
                         f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                         f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
                         f.close()
-                except sqlite3.Error:
-                        os._exit(0)
+                stop = False
 
 def attachmentsParse(urls):
     html="""<div>"""
@@ -297,6 +316,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = ""
                 attachmentsJ = attachments
+                fwdJ = fwd
+                if not fwd is None:
+                        fwd = json.loads(fwd)
                 if not attachments is None:
                         attachments = parseUrls(json.loads(attachments))
                 row = """
@@ -417,7 +439,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                 if isEdited:
                         if message == "":
                                 message = None
-                        cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (message, attachmentsJ, fwd, message_id,))
+                        cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (message, attachmentsJ, fwdJ, message_id,))
                         conn.commit()
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
@@ -426,7 +448,5 @@ longpoll = VkLongPoll(vk_session, wait=30, mode=2)
 
 flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 account_id = vk_session.method("users.get")[0]['id']
-
-tableWatcher.join()
 
 main()
