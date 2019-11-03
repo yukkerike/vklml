@@ -121,6 +121,9 @@ def main():
                 while True:
                         if stop == True:
                                 time.sleep(2)
+                                f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
+                                f.write("stop is up"+"\n\n")
+                                f.close()
                         else:
                                 break
                 stop = True
@@ -159,10 +162,12 @@ def main():
                                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
+                                        stop = False
                                         continue
                                 if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может. Это ошибочно расценивается, как удаление сообщения.
                                         mask = event.mask
                                 else:
+                                        stop = False
                                         continue
                                 messageFlags = []
                                 for i in flags:
@@ -229,17 +234,17 @@ def parseUrls(attachments):
         for i in attachments:
                 type = i['type']
                 if type == 'photo':
-                        urls.append(i[type]['sizes'][-1]['url'])
+                        urls.append(i['photo']['sizes'][-1]['url'])
                 elif type == 'audio_message':
-                        urls.append(i[type]['link_mp3'])
+                        urls.append(i['audio_message']['link_mp3'])
                 elif type == 'sticker':
-                        urls.append(i[type]['images'][0]['url'])
+                        urls.append(i['sticker']['images'][0]['url'])
                 elif type == "gift" or type == 'poll':
                         continue
                 elif type == 'video':
-                        urls.append(i[type]['photo_320']+","+str(i[type]['owner_id'])+"_"+str(i[type]['id'])+"_"+str(i[type]['access_key']))
+                        urls.append(i['video']['photo_320']+","+str(i['video']['owner_id'])+"_"+str(i['video']['id'])+"_"+str(i['video']['access_key']))
                 elif type == 'wall':
-                        urls.append("https://vk.com/wall"+str(i[type]['from_id'])+"_"+str(i[type]['id']))
+                        urls.append("https://vk.com/wall"+str(i['wall']['from_id'])+"_"+str(i['wall']['id']))
                 else:
                         urls.append(i[type]['url'])
         return urls
