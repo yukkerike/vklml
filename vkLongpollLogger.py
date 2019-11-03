@@ -449,7 +449,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
-longpoll = VkLongPoll(vk_session, wait=30, mode=2)
+longpoll = VkLongPoll(vk_session, wait=15, mode=2)
 
 flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 account_id = vk_session.method("users.get")[0]['id']
