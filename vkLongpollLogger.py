@@ -49,11 +49,8 @@ else:
 def bgWatcher():
         while True:
                 global stop
-                while True:
-                        if stop == True:
-                                time.sleep(2)
-                        else:
-                                break
+                while stop:
+                        time.sleep(2)
                 stop = True
                 cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (time.time()-86400,))
                 conn.commit()
@@ -118,14 +115,11 @@ if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
 def main():
         for event in longpoll.listen():
                 global stop
-                while True:
-                        if stop == True:
-                                time.sleep(2)
-                                f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                                f.write("stop is up"+"\n\n")
-                                f.close()
-                        else:
-                                break
+                while stop:
+                        time.sleep(2)
+                        f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
+                        f.write("stop is up"+"\n\n")
+                        f.close()
                 stop = True
                 peer_name = user_name = message = attachments = fwd_messages = None    
                 try:
@@ -449,7 +443,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
-longpoll = VkLongPoll(vk_session, wait=15, mode=2)
+longpoll = VkLongPoll(vk_session, wait=60, mode=2)
 
 flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
 account_id = vk_session.method("users.get")[0]['id']
