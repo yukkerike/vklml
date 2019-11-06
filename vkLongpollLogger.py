@@ -179,34 +179,29 @@ def main():
                 stop = False
 
 def attachmentsParse(urls):
-    html="""<div>"""
-    for i in urls:
-            if i.find("sticker") != -1:
-                    html+="""<img src="{}"/>""".format(i)
-                    continue
-            urlSplit = i.split(".")
-            if len(urlSplit) < 4: #Сниппет со стороннего сайта
-                    html+="""<a href="{0}" target="_blank">{0}</a>""".format(i)
-                    continue
-            if len(urlSplit[3].split(",")) == 1:
-                    urlSplit = urlSplit[3]
-                    if urlSplit == "jpg":
-                            html+="""<img src="{}" wigth=/>""".format(i)
-                    if urlSplit == "mp3":
-                            html+="""<audio src="{}" controls></audio>""".format(i)
-            elif len(urlSplit[3].split(",")) == 2:
-                    urlSplit = [".".join(urlSplit[:3]),]+urlSplit[3].split(",")
-                    html+="""
-    <a href="{}" target="_blank">Видео
-    <img src="{}"/>
-    </a>""".format("./vkGetVideoLink.html?"+urlSplit[2],urlSplit[0]+"."+urlSplit[1])
-            else:
-                    html+="""<a href="{}" target="_blank">Документ</a>""".format(i)
-    html+="</div>"
-    return html
+        html="""<div>"""
+        for i in urls:
+                urlSplit = i.split(",")
+                if i.find("sticker") != -1:
+                        html+="""<img src="{}"/>""".format(i)
+                elif i.find("https://vk.com") == -1 and i.find("userapi.com") == -1: #Сниппет со стороннего сайта
+                        html+="""<a href="{0}" target="_blank">{0}</a>""".format(i)
+                elif i.find("https://vk.com/doc") != -1:
+                        html+="""<a href="{}" target="_blank">Документ</a>""".format(i)
+                elif i.find("jpg") != -1 and i.find(",") == -1:
+                        html+="""<img src="{}" wigth=/>""".format(i)
+                elif i.find("mp3") != -1:
+                        html+="""<audio src="{}" controls></audio>""".format(i)
+                elif len(urlSplit) == 2:
+                        html+="""
+        <a href="{}" target="_blank">Видео
+        <img src="{}"/>
+        </a>""".format("./vkGetVideoLink.html?"+urlSplit[1],urlSplit[0])
+        html+="</div>"
+        return html
 
 def getAttachments(message_id):
-        attachments = vk_session.method("messages.getById",{"message_ids":message_id})['items'][0]
+        attachments = vk.messages.getById(message_ids=message_id)['items'][0]
         fwd_messages = None
         try:
                 if attachments['fwd_messages'] != [] or attachments['reply_message'] != {}:
@@ -248,7 +243,7 @@ def getUserName(id):
                 cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (id,))
                 fetch = cursor.fetchone()
                 if fetch is None:
-                        name = vk_session.method("messages.getChat",{"chat_id":id-2000000000})["title"]
+                        name = vk.messages.getChat(chat_id=id-2000000000)["title"]
                         cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id,name,))
                         conn.commit()
                 else:
@@ -257,7 +252,7 @@ def getUserName(id):
                 cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
                 fetch = cursor.fetchone()
                 if fetch is None:
-                        name = vk_session.method("groups.getById",{"group_id":-id})[0]['name']
+                        name = vk.groups.getById(group_id=-id)[0]['name']
                         cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
                         conn.commit()
                 else:
@@ -266,7 +261,7 @@ def getUserName(id):
                 cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
                 fetch = cursor.fetchone()
                 if fetch is None:
-                        name = vk_session.method("users.get",{"user_id":id})[0]
+                        name = vk.users.get(user_id=id)[0]
                         name = name['first_name'] + " " + name['last_name']
                         cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
                         conn.commit()
@@ -443,9 +438,14 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
-longpoll = VkLongPoll(vk_session, wait=60, mode=2)
+longpoll = VkLongPoll(vk_session, wait=90, mode=2)
 
 flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
-account_id = vk_session.method("users.get")[0]['id']
+account_id = vk.users.get()[0]['id']
 
-main()
+while True:
+        try:
+                main()
+        except BaseException:
+                time.sleep(5)
+                continue
