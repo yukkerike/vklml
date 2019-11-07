@@ -4,7 +4,7 @@
 
 Начало
 ------------
-> **[python 3.2](https://python.org/) или новее**
+> **[python 3.4](https://python.org/) или новее**
 
     $ git clone https://github.com/ikozlovsky/vkLongpollMessagesActionsLogger.git
     $ cd vkLongpollMessagesActionsLogger
