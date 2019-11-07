@@ -184,7 +184,7 @@ def attachmentsParse(urls):
                 urlSplit = i.split(",")
                 if i.find("sticker") != -1:
                         html+="""<img src="{}"/>""".format(i)
-                elif i.find("https://vk.com") == -1 and i.find("userapi.com") == -1: #Сниппет со стороннего сайта
+                elif i.find("https://vk.com") == -1 and i.find("userapi.com") == -1 or i.find("https://vk.com/wall") != -1 or i.find("https://vk.com/poll") != -1:
                         html+="""<a href="{0}" target="_blank">{0}</a>""".format(i)
                 elif i.find("https://vk.com/doc") != -1:
                         html+="""<a href="{}" target="_blank">Документ</a>""".format(i)
@@ -192,11 +192,13 @@ def attachmentsParse(urls):
                         html+="""<img src="{}" wigth=/>""".format(i)
                 elif i.find("mp3") != -1:
                         html+="""<audio src="{}" controls></audio>""".format(i)
-                elif len(urlSplit) == 2:
+                elif len(urlSplit) == 2 and i.find("https://vk.com/audio") == -1:
                         html+="""
         <a href="{}" target="_blank">Видео
         <img src="{}"/>
         </a>""".format("./vkGetVideoLink.html?"+urlSplit[1],urlSplit[0])
+                elif i.find("https://vk.com/audio") != -1:
+                        html+="""<a href="{}" target="_blank">{}</a>""".format(i,i[23:-11].replace("%20"," "))
         html+="</div>"
         return html
 
@@ -228,14 +230,23 @@ def parseUrls(attachments):
                         urls.append(i['audio_message']['link_mp3'])
                 elif type == 'sticker':
                         urls.append(i['sticker']['images'][0]['url'])
-                elif type == "gift" or type == 'poll':
-                        continue
+                elif type == "gift" or type == 'link' or type == 'market_album':
+                        if len(attachments) == 1:
+                                return None
+                        else:
+                                continue
                 elif type == 'video':
                         urls.append(i['video']['photo_320']+","+str(i['video']['owner_id'])+"_"+str(i['video']['id'])+"_"+str(i['video']['access_key']))
                 elif type == 'wall':
                         urls.append("https://vk.com/wall"+str(i['wall']['from_id'])+"_"+str(i['wall']['id']))
-                else:
-                        urls.append(i[type]['url'])
+                elif type == 'wall_reply':
+                        urls.append("https://vk.com/wall"+str(i['wall_reply']['owner_id'])+"_"+str(i['wall_reply']['post_id'])+"?reply="+str(i['wall_reply']['id']))
+                elif type == 'audio':
+                        urls.append("https://vk.com/audio?q="+str(i['audio']['artist']).replace(" ", "%20")+"%20-%20"+str(i['audio']['title']).replace(" ", "%20")+"&tab=global")
+                elif type == 'market':
+                        urls.append("https://vk.com/market?w=product"+str(i['market']['owner_id'])+"_"+str(i['market']['id']))
+                elif type == 'poll':
+                        urls.append("https://vk.com/poll"+str(i['poll']['owner_id'])+"_"+str(i['poll']['id']))
         return urls
 
 def getUserName(id):
@@ -291,7 +302,7 @@ def fwdParse(fwd):
                         html+="""<tr><td>
 <a href='https://vk.com/id{}' target="_blank">{}</a>
 </td></tr>""".format(i['from_id'],user_name)
-                html+="<tr><td>"+"<br />".join("&gt;".join("&lt;".join(i['text'].split("<")).split(">")).split("\n"))+"<br />"
+                html+="<tr><td>"+i['text'].replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
                 if i['attachments'] != []:
                         html+=attachmentsParse(parseUrls(i['attachments']))
                 if 'fwd_messages' in i:
@@ -311,10 +322,19 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                 peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = ""
                 attachmentsJ = attachments
                 fwdJ = fwd
-                if not fwd is None:
-                        fwd = json.loads(fwd)
+                cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
+                fetch = cursor.fetchone()
+                if not fetch[3] is None:
+                        oldMessage = str(fetch[3])
                 if not attachments is None:
                         attachments = parseUrls(json.loads(attachments))
+                        if attachments is None and not attachmentsJ is None:
+                                attachmentsJ = None
+                                if isEdited and message == oldMessage:
+                                        row = None
+                                        return
+                if not fwd is None:
+                        fwd = json.loads(fwd)
                 row = """
                         <tr>
                                 <td>"""
@@ -343,17 +363,12 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                 messagesDump = messagesActivities.read()
                 messagesActivities.close()
                 messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
-                cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
-                fetch = cursor.fetchone()
                 peer_name = getUserName(fetch[0])
                 user_name = getUserName(fetch[1])
-                if not fetch[3] is None:
-                        oldMessage = str(fetch[3])
                 if not fetch[4] is None:
                         oldAttachments = parseUrls(json.loads(fetch[4]))
-                elif isEdited and message.find("youtu") != -1:
-                        row = None
-                        return
+                        if oldAttachments is None:
+                                oldAttachments = ""
                 if not fetch[6] is None:
                         oldFwd = json.loads(fetch[6])
                 date = time.ctime(fetch[5])
@@ -388,7 +403,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                                         <b>Старое</b><br />
                                         """
                         if oldMessage != "":
-                                row+="<br />".join(("&gt;".join("&lt;".join(oldMessage.split("<")).split(">"))).split("\n"))+"<br />"
+                                row+=oldMessage.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
                         if oldAttachments != "":
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
                         if oldFwd != "":
@@ -399,7 +414,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                                         <b>Новое</b><br />
                                         """
                         if message != "":
-                                row+="<br />".join(("&gt;".join("&lt;".join(message.split("<")).split(">"))).split("\n"))+"<br />"
+                                row+=message.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
                         if not attachments is None:
                                 row+="<b>Вложения</b><br />"+attachmentsParse(attachments)+"<br />"
                         if not fwd is None:
@@ -411,7 +426,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                                 <td width="100%" colspan='2'><b>Удалено</b><br />
                                 """
                         if oldMessage != "":
-                                row+="<br />".join(("&gt;".join("&lt;".join(oldMessage.split("<")).split(">"))).split("\n"))+"<br />"
+                                row+=oldMessage.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
                         if oldAttachments != "":
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
                         if oldFwd != "":
@@ -428,8 +443,8 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                         messagesDump = messagesDump[:478]+row+messagesDump[478:]
                         if not attachments is None:
                                 attachments = json.dumps(attachments)
-                messagesActivities.write(messagesDump)
-                messagesActivities.close()
+                        messagesActivities.write(messagesDump)
+                        messagesActivities.close()
                 if isEdited:
                         if message == "":
                                 message = None
