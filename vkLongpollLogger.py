@@ -335,6 +335,16 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                                         return
                 if not fwd is None:
                         fwd = json.loads(fwd)
+                if not fetch[4] is None:
+                        oldAttachments = parseUrls(json.loads(fetch[4]))
+                        if oldAttachments is None:
+                                oldAttachments = ""
+                else:
+                        if isEdited and not attachments is None and (message.find("youtu") != -1 and attachments[0].find(",") != -1) or message.find("instagram") != -1:
+                                row = None
+                                return
+                if not fetch[6] is None:
+                        oldFwd = json.loads(fetch[6])
                 row = """
                         <tr>
                                 <td>"""
@@ -365,12 +375,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                 messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
                 peer_name = getUserName(fetch[0])
                 user_name = getUserName(fetch[1])
-                if not fetch[4] is None:
-                        oldAttachments = parseUrls(json.loads(fetch[4]))
-                        if oldAttachments is None:
-                                oldAttachments = ""
-                if not fetch[6] is None:
-                        oldFwd = json.loads(fetch[6])
                 date = time.ctime(fetch[5])
                 row+="""{}</td>
                                 <td>""".format(str(message_id))
