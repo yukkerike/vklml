@@ -180,14 +180,12 @@ def main():
 
 def attachmentsParse(urls):
         html="""<div>"""
+        if urls is None:
+                return ""
         for i in urls:
                 urlSplit = i.split(",")
                 if i.find("sticker") != -1:
                         html+="""<img src="{}"/>""".format(i)
-                elif i.find("https://vk.com") == -1 and i.find("userapi.com") == -1 or i.find("https://vk.com/wall") != -1 or i.find("https://vk.com/poll") != -1:
-                        html+="""<a href="{0}" target="_blank">{0}</a>""".format(i)
-                elif i.find("https://vk.com/doc") != -1:
-                        html+="""<a href="{}" target="_blank">Документ</a>""".format(i)
                 elif i.find("jpg") != -1 and i.find(",") == -1:
                         html+="""<img src="{}" wigth=/>""".format(i)
                 elif i.find("mp3") != -1:
@@ -199,6 +197,11 @@ def attachmentsParse(urls):
         </a>""".format("./vkGetVideoLink.html?"+urlSplit[1],urlSplit[0])
                 elif i.find("https://vk.com/audio") != -1:
                         html+="""<a href="{}" target="_blank">{}</a>""".format(i,i[23:-11].replace("%20"," "))
+                elif i.find("@") != -1:
+                        i = i.split("@")
+                        html+="""<a href="{}" target="_blank">{}</a>""".format(i[1],i[0])
+                else:
+                        html+="""<a href="{0}" target="_blank">{0}</a>""".format(i)
         html+="</div>"
         return html
 
@@ -211,7 +214,7 @@ def getAttachments(message_id):
                                 fwd_messages = json.dumps([attachments['reply_message']],indent=1,ensure_ascii=False,)
                         else:
                                 fwd_messages = json.dumps(attachments['fwd_messages'],indent=1,ensure_ascii=False,)
-        except(KeyError):
+        except KeyError:
                 pass
         attachments = attachments['attachments']
         if attachments == []:
@@ -230,24 +233,33 @@ def parseUrls(attachments):
                         urls.append(i['audio_message']['link_mp3'])
                 elif type == 'sticker':
                         urls.append(i['sticker']['images'][0]['url'])
-                elif type == "gift" or type == 'link' or type == 'market_album':
-                        if len(attachments) == 1:
-                                return None
-                        else:
-                                continue
+                elif type == 'gift':
+                        urls.append(i['gift']['thumb_48'])
+                elif type == 'link':
+                        urls.append("Ссылка: "+i['link']['title']+"@"+i['link']['url'])
                 elif type == 'video':
                         urls.append(i['video']['photo_320']+","+str(i['video']['owner_id'])+"_"+str(i['video']['id'])+"_"+str(i['video']['access_key']))
                 elif type == 'wall':
-                        urls.append("https://vk.com/wall"+str(i['wall']['from_id'])+"_"+str(i['wall']['id']))
+                        urls.append("Пост: "+i['wall']['text'][:25]+"@"+"https://vk.com/wall"+str(i['wall']['from_id'])+"_"+str(i['wall']['id']))
                 elif type == 'wall_reply':
-                        urls.append("https://vk.com/wall"+str(i['wall_reply']['owner_id'])+"_"+str(i['wall_reply']['post_id'])+"?reply="+str(i['wall_reply']['id']))
+                        urls.append("Комментарий: "+i['wall_reply']['text'][:25]+"@"+"https://vk.com/wall"+str(i['wall_reply']['owner_id'])+"_"+str(i['wall_reply']['post_id'])+"?reply="+str(i['wall_reply']['id']))
                 elif type == 'audio':
                         urls.append("https://vk.com/audio?q="+str(i['audio']['artist']).replace(" ", "%20")+"%20-%20"+str(i['audio']['title']).replace(" ", "%20")+"&tab=global")
                 elif type == 'market':
                         urls.append("https://vk.com/market?w=product"+str(i['market']['owner_id'])+"_"+str(i['market']['id']))
                 elif type == 'poll':
-                        urls.append("https://vk.com/poll"+str(i['poll']['owner_id'])+"_"+str(i['poll']['id']))
-        return urls
+                        urls.append("Голосование: "+i['poll']['question'][:25]+"@"+"https://vk.com/poll"+str(i['poll']['owner_id'])+"_"+str(i['poll']['id']))
+                elif type == 'doc':
+                        urls.append("Документ: "+i['doc']['title']+"@"+i['doc']['url'])
+                else:
+                        try:
+                                urls.append(i[type]['url'])
+                        except KeyError:
+                                pass
+        if urls == []:
+                return None
+        else:
+                return urls
 
 def getUserName(id):
         if id > 2000000000:
@@ -302,7 +314,10 @@ def fwdParse(fwd):
                         html+="""<tr><td>
 <a href='https://vk.com/id{}' target="_blank">{}</a>
 </td></tr>""".format(i['from_id'],user_name)
-                html+="<tr><td>"+i['text'].replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
+                if i['text'] != "":
+                        html+="<tr><td>"+i['text'].replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
+                else:
+                        html+="<tr><td>"
                 if i['attachments'] != []:
                         html+=attachmentsParse(parseUrls(i['attachments']))
                 if 'fwd_messages' in i:
@@ -314,12 +329,12 @@ def fwdParse(fwd):
         html+="</table>"
         return html
 
-def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=None,  message=""):
+def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=None,  message=None):
         if createIndex:
                 global prevDate
                 prevDate = updateIndex(cwd,prevDate)
         try:
-                peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = ""
+                peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = None
                 attachmentsJ = attachments
                 fwdJ = fwd
                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
@@ -328,19 +343,12 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                         oldMessage = str(fetch[3])
                 if not attachments is None:
                         attachments = parseUrls(json.loads(attachments))
-                        if attachments is None and not attachmentsJ is None:
-                                attachmentsJ = None
-                                if isEdited and message == oldMessage:
-                                        row = None
-                                        return
                 if not fwd is None:
                         fwd = json.loads(fwd)
                 if not fetch[4] is None:
                         oldAttachments = parseUrls(json.loads(fetch[4]))
-                        if oldAttachments is None:
-                                oldAttachments = ""
                 else:
-                        if isEdited and not attachments is None and (message.find("youtu") != -1 and attachments[0].find(",") != -1) or message.find("instagram") != -1:
+                        if isEdited and not attachments is None and attachments[0].find(message) != -1:
                                 row = None
                                 return
                 if not fetch[6] is None:
@@ -406,18 +414,18 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                                 <td width="50%">
                                         <b>Старое</b><br />
                                         """
-                        if oldMessage != "":
+                        if not oldMessage is None:
                                 row+=oldMessage.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
-                        if oldAttachments != "":
+                        if not oldAttachments is None:
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
-                        if oldFwd != "":
+                        if not oldFwd is None:
                                 row+="<b>Пересланное</b><br />"+fwdParse(oldFwd)
                         row+="""
                                 </td>
                                 <td width="50%">
                                         <b>Новое</b><br />
                                         """
-                        if message != "":
+                        if not message is None:
                                 row+=message.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
                         if not attachments is None:
                                 row+="<b>Вложения</b><br />"+attachmentsParse(attachments)+"<br />"
@@ -429,11 +437,11 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                         row+="""
                                 <td width="100%" colspan='2'><b>Удалено</b><br />
                                 """
-                        if oldMessage != "":
+                        if not oldMessage is None:
                                 row+=oldMessage.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
-                        if oldAttachments != "":
+                        if not oldAttachments is None:
                                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
-                        if oldFwd != "":
+                        if not oldFwd is None:
                                 row+="<b>Пересланное</b><br />"+fwdParse(oldFwd)
                         row+="</td>\n<td>"
                         row+=date+"</td>"
@@ -450,8 +458,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                         messagesActivities.write(messagesDump)
                         messagesActivities.close()
                 if isEdited:
-                        if message == "":
-                                message = None
                         cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (message, attachmentsJ, fwdJ, message_id,))
                         conn.commit()
 
