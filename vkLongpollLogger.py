@@ -55,7 +55,10 @@ def bgWatcher():
                 cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (time.time()-86400,))
                 conn.commit()
                 stop = False
-                time.sleep(86400)
+                if createIndex:
+                        global prevDate
+                        prevDate = updateIndex(cwd,prevDate)
+                time.sleep(time.mktime(time.strptime(time.strftime("%d %b %Y",time.localtime(time.time()+86400)),"%d %b %Y"))-time.time())
 
 def interrupt_handler(signum, frame):
         conn.commit()
@@ -152,7 +155,8 @@ def main():
                                         conn.commit()
                                 if event.attachments != {}:
                                         hasUpdateTime, attachments, fwd_messages = getAttachments(event.message_id)
-                                activityReport(event.message_id, event.timestamp, True, attachments, fwd_messages, event.text, hasUpdateTime)
+                                if hasUpdateTime:
+                                        activityReport(event.message_id, event.timestamp, True, attachments, fwd_messages, event.text, hasUpdateTime)
                                 cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (event.message, attachments, fwd_messages, event.message_id,))
                                 conn.commit()
                         elif event.type == VkEventType.MESSAGE_FLAGS_SET:
@@ -335,12 +339,6 @@ def fwdParse(fwd):
         return html
 
 def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=None,  message=None, hasUpdateTime=False):
-        if isEdited and not hasUpdateTime:
-                row = None
-                return
-        if createIndex:
-                global prevDate
-                prevDate = updateIndex(cwd,prevDate)
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = None
                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
@@ -455,13 +453,10 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                 f.write(str(e)+" "+row+" "+time.ctime(timestamp)+"\n\n")
                 f.close()
         finally:
-                if not row is None:
-                        row+="</tr>"
-                        messagesDump = messagesDump[:478]+row+messagesDump[478:]
-                        if not attachments is None:
-                                attachments = json.dumps(attachments,ensure_ascii=False,)
-                        messagesActivities.write(messagesDump)
-                        messagesActivities.close()
+                row+="</tr>"
+                messagesDump = messagesDump[:478]+row+messagesDump[478:]
+                messagesActivities.write(messagesDump)
+                messagesActivities.close()
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
