@@ -121,7 +121,7 @@ def main():
                         f.write("stop is up"+"\n\n")
                         f.close()
                 stop = True
-                peer_name = user_name = message = attachments = fwd_messages = None    
+                attachments = fwd_messages = None    
                 try:
                         if event.type == VkEventType.MESSAGE_NEW:
                                 if event.from_user:
@@ -135,6 +135,7 @@ def main():
                                 cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
                                 conn.commit()
                         elif event.type == VkEventType.MESSAGE_EDIT:
+                                hasUpdateTime = True
                                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
@@ -150,9 +151,12 @@ def main():
                                         cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
                                         conn.commit()
                                 if event.attachments != {}:
-                                        attachments,fwd_messages = getAttachments(event.message_id)
-                                activityReport(event.message_id, event.timestamp, True, attachments, fwd_messages, event.text)
+                                        hasUpdateTime, attachments, fwd_messages = getAttachments(event.message_id)
+                                activityReport(event.message_id, event.timestamp, True, attachments, fwd_messages, event.text, hasUpdateTime)
+                                cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (event.message, attachments, fwd_messages, event.message_id,))
+                                conn.commit()
                         elif event.type == VkEventType.MESSAGE_FLAGS_SET:
+                                hasUpdateTime = False
                                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
                                 fetch = cursor.fetchone()
                                 if fetch is None:
@@ -207,21 +211,22 @@ def attachmentsParse(urls):
 
 def getAttachments(message_id):
         attachments = vk.messages.getById(message_ids=message_id)['items'][0]
+        hasUpdateTime = 'update_time' in attachments
         fwd_messages = None
         try:
                 if attachments['fwd_messages'] != [] or attachments['reply_message'] != {}:
                         if attachments['fwd_messages'] == []:
-                                fwd_messages = json.dumps([attachments['reply_message']],indent=1,ensure_ascii=False,)
+                                fwd_messages = json.dumps([attachments['reply_message']],ensure_ascii=False,)
                         else:
-                                fwd_messages = json.dumps(attachments['fwd_messages'],indent=1,ensure_ascii=False,)
+                                fwd_messages = json.dumps(attachments['fwd_messages'],ensure_ascii=False,)
         except KeyError:
                 pass
         attachments = attachments['attachments']
         if attachments == []:
                 attachments = None
         else:
-                attachments = json.dumps(attachments,indent=1,ensure_ascii=False,)
-        return attachments,fwd_messages
+                attachments = json.dumps(attachments,ensure_ascii=False,)
+        return hasUpdateTime, attachments, fwd_messages
 
 def parseUrls(attachments):
         urls = []
@@ -292,15 +297,15 @@ def getUserName(id):
                         name = fetch[1]
         return name
 
-def parseEvent(message_id,peer_id,user_id,message,attachments,from_chat,from_user,from_group,timestamp):
+def parseEvent(message_id, peer_id, user_id, message, attachments, from_chat, from_user, from_group, timestamp):
         if attachments != {}:
-                attachments,fwd_messages = getAttachments(message_id)
+                hasUpdateTime, attachments, fwd_messages = getAttachments(message_id)
         else:
                 attachments = None
                 fwd_messages = None
         if message == "":
                 message = None
-        return peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages
+        return peer_id, user_id, message_id, message, attachments, timestamp, fwd_messages
 
 def fwdParse(fwd):
         html="""<table border="1" width="100%" frame="hsides" style="margin-left:5px;">"""
@@ -329,14 +334,15 @@ def fwdParse(fwd):
         html+="</table>"
         return html
 
-def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=None,  message=None):
+def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=None,  message=None, hasUpdateTime=False):
+        if isEdited and not hasUpdateTime:
+                row = None
+                return
         if createIndex:
                 global prevDate
                 prevDate = updateIndex(cwd,prevDate)
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = None
-                attachmentsJ = attachments
-                fwdJ = fwd
                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
                 fetch = cursor.fetchone()
                 if not fetch[3] is None:
@@ -347,10 +353,6 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                         fwd = json.loads(fwd)
                 if not fetch[4] is None:
                         oldAttachments = parseUrls(json.loads(fetch[4]))
-                else:
-                        if isEdited and not attachments is None and attachments[0].find(message) != -1:
-                                row = None
-                                return
                 if not fetch[6] is None:
                         oldFwd = json.loads(fetch[6])
                 row = """
@@ -384,31 +386,34 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                 peer_name = getUserName(fetch[0])
                 user_name = getUserName(fetch[1])
                 date = time.ctime(fetch[5])
+                peer_id = fetch[0]
+                user_id = fetch[1]
+                del fetch
                 row+="""{}</td>
                                 <td>""".format(str(message_id))
-                if fetch[0] > 2000000000:
+                if peer_id > 2000000000:
                         row+="""
                                         <a href='https://vk.com/im?sel=c{}' target="_blank">{}</a>
                                 </td>
-                                <td>""".format(str(fetch[0]-2000000000),peer_name)
-                elif fetch[0] < 0:
+                                <td>""".format(str(peer_id-2000000000),peer_name)
+                elif peer_id < 0:
                         row+="""
                                         <a href='https://vk.com/public{}' target="_blank">{}</a>
                                 </td>
-                                <td>""".format(str(-fetch[0]),peer_name)
+                                <td>""".format(str(-peer_id),peer_name)
                 else:
                         row+="""
                                         <a href='https://vk.com/id{}' target="_blank">{}</a>
                                 </td>
-                                <td>""".format(str(fetch[0]),peer_name)
-                if fetch[1] < 0:
+                                <td>""".format(str(peer_id),peer_name)
+                if user_id < 0:
                         row+="""
                                         <a href='https://vk.com/public{}' target="_blank">{}</a>
-                                </td>""".format(str(-fetch[1]),peer_name)
+                                </td>""".format(str(-user_id),peer_name)
                 else:
                         row+="""
                                         <a href='https://vk.com/id{}' target="_blank">{}</a>
-                                </td>""".format(str(fetch[1]),user_name)
+                                </td>""".format(str(user_id),user_name)
                 if isEdited:
                         row+="""
                                 <td width="50%">
@@ -454,12 +459,9 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                         row+="</tr>"
                         messagesDump = messagesDump[:478]+row+messagesDump[478:]
                         if not attachments is None:
-                                attachments = json.dumps(attachments)
+                                attachments = json.dumps(attachments,ensure_ascii=False,)
                         messagesActivities.write(messagesDump)
                         messagesActivities.close()
-                if isEdited:
-                        cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (message, attachmentsJ, fwdJ, message_id,))
-                        conn.commit()
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
