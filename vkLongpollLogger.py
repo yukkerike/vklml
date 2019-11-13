@@ -115,6 +115,15 @@ if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
 </html>""".format(ACCESS_TOKEN))
         f.close()
 
+def tryAgainIfFailed(funс, delay=5, *args, **kwargs):
+        while True:
+                try:
+                        return funс(*args, **kwargs)
+                        break
+                except BaseException:
+                        time.sleep(delay)
+                        continue
+
 def main():
         for event in longpoll.listen():
                 global stop
@@ -214,7 +223,7 @@ def attachmentsParse(urls):
         return html
 
 def getAttachments(message_id):
-        attachments = vk.messages.getById(message_ids=message_id)['items'][0]
+        attachments = tryAgainIfFailed(vk.messages.getById,delay=0.5,message_ids=message_id)['items'][0]
         hasUpdateTime = 'update_time' in attachments
         fwd_messages = None
         try:
@@ -275,7 +284,7 @@ def getUserName(id):
                 cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (id,))
                 fetch = cursor.fetchone()
                 if fetch is None:
-                        name = vk.messages.getChat(chat_id=id-2000000000)["title"]
+                        name = tryAgainIfFailed(vk.messages.getChat,delay=0.5,chat_id=id-2000000000)["title"]
                         cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id,name,))
                         conn.commit()
                 else:
@@ -284,7 +293,7 @@ def getUserName(id):
                 cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
                 fetch = cursor.fetchone()
                 if fetch is None:
-                        name = vk.groups.getById(group_id=-id)[0]['name']
+                        name = tryAgainIfFailed(vk.groups.getById,delay=0.5,group_id=-id)[0]['name']
                         cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
                         conn.commit()
                 else:
@@ -293,7 +302,7 @@ def getUserName(id):
                 cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
                 fetch = cursor.fetchone()
                 if fetch is None:
-                        name = vk.users.get(user_id=id)[0]
+                        name = tryAgainIfFailed(vk.users.get,delay=0.5,user_id=id)[0]
                         name = name['first_name'] + " " + name['last_name']
                         cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id,name,))
                         conn.commit()
@@ -463,11 +472,6 @@ vk = vk_session.get_api()
 longpoll = VkLongPoll(vk_session, wait=90, mode=2)
 
 flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
-account_id = vk.users.get()[0]['id']
+account_id = tryAgainIfFailed(vk.users.get,delay=0.5)[0]['id']
 
-while True:
-        try:
-                main()
-        except BaseException:
-                time.sleep(5)
-                continue
+tryAgainIfFailed(main, delay=5)
