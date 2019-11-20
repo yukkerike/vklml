@@ -129,9 +129,6 @@ def main():
                 global stop
                 while stop:
                         time.sleep(2)
-                        f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                        f.write("stop is up"+"\n\n")
-                        f.close()
                 stop = True
                 attachments = fwd_messages = None    
                 try:
@@ -246,7 +243,14 @@ def parseUrls(attachments):
         for i in attachments:
                 type = i['type']
                 if type == 'photo':
-                        urls.append(i['photo']['sizes'][-1]['url'])
+                        realSizesIndex = 0
+                        virtSizesIndex = sizes.index(i['photo']['sizes'][0]['type'])
+                        for j in range(1,len(i['photo']['sizes'])):
+                                temp = sizes.index(i['photo']['sizes'][j]['type'])
+                                if temp > virtSizesIndex:
+                                        virtSizesIndex = temp
+                                        realSizesIndex = j
+                        urls.append(i['photo']['sizes'][realSizesIndex]['url'])
                 elif type == 'audio_message':
                         urls.append(i['audio_message']['link_mp3'])
                 elif type == 'sticker':
@@ -471,7 +475,8 @@ vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
 longpoll = VkLongPoll(vk_session, wait=90, mode=2)
 
-flags = [262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1]
+flags = (262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1)
+sizes = ("s","m","x","o","p","q","r","y","z","w")
 account_id = tryAgainIfFailed(vk.users.get,delay=0.5)[0]['id']
 
 tryAgainIfFailed(main, delay=5)
