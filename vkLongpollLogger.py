@@ -52,6 +52,7 @@ def bgWatcher():
                 while stop:
                         time.sleep(2)
                 stop = True
+                removeMessagesWithDeletedPhotos()
                 cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (time.time()-86400,))
                 conn.commit()
                 stop = False
@@ -69,9 +70,6 @@ def interrupt_handler(signum, frame):
                 pass
         os._exit(0)
 
-stop = False
-tableWatcher = threading.Thread(target=bgWatcher)
-tableWatcher.start()
 signal.signal(signal.SIGINT, interrupt_handler)
 
 if not os.path.exists(os.path.join(cwd, "mesAct")):
@@ -162,7 +160,7 @@ def main():
                                 if event.attachments != {}:
                                         hasUpdateTime, attachments, fwd_messages = getAttachments(event.message_id)
                                 if hasUpdateTime:
-                                        activityReport(event.message_id, event.timestamp, True, attachments, fwd_messages, event.text, hasUpdateTime)
+                                        activityReport(event.message_id, True, attachments, fwd_messages, event.text, hasUpdateTime)
                                 cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (event.message, attachments, fwd_messages, event.message_id,))
                                 conn.commit()
                         elif event.type == VkEventType.MESSAGE_FLAGS_SET:
@@ -185,12 +183,40 @@ def main():
                                         else:
                                                 messageFlags.append(i)
                                 if (131072 in messageFlags or 128 in messageFlags):
-                                        activityReport(event.message_id, time.time())
+                                        activityReport(event.message_id)
+                                        cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
+                                        conn.commit()
                 except BaseException as e:
                         f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
                         f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
                         f.close()
                 stop = False
+
+def removeMessagesWithDeletedPhotos():
+        cursor.execute("""SELECT * FROM messages WHERE attachments IS NOT NULL""")
+        fetch = cursor.fetchall()
+        ids = []
+        c=0
+        for i in range(len(fetch)):
+                fetch[i-c]=list(fetch[i-c])
+                fetch[i-c][4]=json.loads(fetch[i-c][4])
+                for j in fetch[i-c][4]:
+                        if j['type'] == 'photo':
+                                ids.append(str(fetch[i-c][2]))
+                                break
+                else:
+                        del fetch[i-c]
+                        c+=1
+        messages=[]
+        for i in [ids[i:i + 100] for i in range(0, len(ids), 100)]:
+                messages.extend(vk.messages.getById(message_ids=",".join(i))['items'])
+        c=0
+        for i in range(len(ids)):
+                if len(messages[i]['attachments'])==len(fetch[i][4]):
+                        del ids[i-c]
+                        c+=1
+        for i in ids:
+                activityReport(i)
 
 def attachmentsParse(urls):
         html="""<div>"""
@@ -351,7 +377,7 @@ def fwdParse(fwd):
         html+="</table>"
         return html
 
-def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=None,  message=None, hasUpdateTime=False):
+def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  message=None, hasUpdateTime=False):
         try:
                 peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = None
                 cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
@@ -463,7 +489,7 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
                         row+=date+"</td>"
         except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-                f.write(str(e)+" "+row+" "+time.ctime(timestamp)+"\n\n")
+                f.write(str(e)+" "+row+" "+time.ctime(time.time())+"\n\n")
                 f.close()
         finally:
                 row+="</tr>"
@@ -473,6 +499,11 @@ def activityReport(message_id, timestamp, isEdited=False, attachments=None, fwd=
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
 vk = vk_session.get_api()
+
+stop = False
+tableWatcher = threading.Thread(target=bgWatcher)
+tableWatcher.start()
+
 longpoll = VkLongPoll(vk_session, wait=90, mode=2)
 
 flags = (262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1)
