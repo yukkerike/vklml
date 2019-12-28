@@ -113,11 +113,10 @@ if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
 </html>""".format(ACCESS_TOKEN))
         f.close()
 
-def tryAgainIfFailed(funс, delay=5, *args, **kwargs):
+def tryAgainIfFailed(func, delay=5, *args, **kwargs):
         while True:
                 try:
-                        return funс(*args, **kwargs)
-                        break
+                        return func(*args, **kwargs)
                 except BaseException:
                         time.sleep(delay)
                         continue
@@ -446,7 +445,7 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
                 if user_id < 0:
                         row+="""
                                         <a href='https://vk.com/public{}' target="_blank">{}</a>
-                                </td>""".format(str(-user_id),peer_name)
+                                </td>""".format(str(-user_id),user_name)
                 else:
                         row+="""
                                         <a href='https://vk.com/id{}' target="_blank">{}</a>
