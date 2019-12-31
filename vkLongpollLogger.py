@@ -255,11 +255,11 @@ def showMessagesWithDeletedAttachments():
             pass
         for j in range(len(messages_fwd[i-c]['fwd_messages'])):
             if len(messages_fwd[i-c]['fwd_messages'][j]['attachments'])!=len(fetch_fwd[i-c][1][j]['attachments']):
-                continue
+                break
+        else:
             del fetch_fwd[i-c]
             del messages_fwd[i-c]
             c+=1
-            break
     for i in range(len(fetch_fwd)):
         activityReport(fetch_fwd[i][0])
         if messages_fwd[i]['fwd_messages'] == []:
