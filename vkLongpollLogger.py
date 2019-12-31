@@ -217,17 +217,6 @@ def showMessagesWithDeletedAttachments():
             del fetch_attachments[i-c]
             c+=1
     c=0
-    for i in range(len(fetch_fwd)):
-        for j in fetch_fwd[i-c][1]:
-            for k in j['attachments']:
-                if k['type'] == 'photo' or k['type'] == 'video' or k['type'] == 'doc':
-                    break
-            else:
-                continue
-            break
-        else:
-            del fetch_fwd[i-c]
-            c+=1
     messages_attachments = []
     messages_fwd = []
     for i in [[j[0] for j in fetch_attachments[i:i + 100]] for i in range(0, len(fetch_attachments), 100)]:
@@ -236,7 +225,7 @@ def showMessagesWithDeletedAttachments():
         messages_fwd.extend(vk.messages.getById(message_ids=",".join(i))['items'])
     c=0
     for i in range(len(fetch_attachments)):
-        if len(messages_attachments[i-c]['attachments'])==len(fetch_attachments[i-c][1]):
+        if compareAttachments(messages_attachments[i-c]['attachments'],fetch_attachments[i-c][1]):
             del fetch_attachments[i-c]
             del messages_attachments[i-c]
             c+=1
@@ -248,15 +237,7 @@ def showMessagesWithDeletedAttachments():
             cursor.execute("""UPDATE messages SET attachments = ? WHERE message_id = ?""", (json.dumps(messages_attachments[i]['attachments']), fetch_attachments[i][0],))
     c=0
     for i in range(len(fetch_fwd)):
-        try:
-            if messages_fwd[i-c]['reply_message'] != {}:
-                messages_fwd[i-c]['fwd_messages']=[messages_fwd[i-c]['reply_message']]
-        except KeyError:
-            pass
-        for j in range(len(messages_fwd[i-c]['fwd_messages'])):
-            if len(messages_fwd[i-c]['fwd_messages'][j]['attachments'])!=len(fetch_fwd[i-c][1][j]['attachments']):
-                break
-        else:
+        if compareFwd(messages_fwd[i-c],{'fwd_messages':fetch_fwd[i-c][1]}):
             del fetch_fwd[i-c]
             del messages_fwd[i-c]
             c+=1
@@ -267,6 +248,24 @@ def showMessagesWithDeletedAttachments():
         else:
             cursor.execute("""UPDATE messages SET fwd_messages = ? WHERE message_id = ?""", (json.dumps(messages_fwd[i]['fwd_messages']), fetch_fwd[i][0],))
     conn.commit()
+
+def compareFwd(new,old):
+    if 'reply_message' in new:
+        new['fwd_messages']=[new['reply_message']]
+    if 'reply_message' in old:
+        old['fwd_messages']=[old['reply_message']]
+    for i in range(len(old['fwd_messages'])):
+        if 'fwd_messages' in old['fwd_messages'][i]:
+            if not compareFwd(new['fwd_messages'][i],old['fwd_messages'][i]):
+                return False
+        if not compareAttachments(new['fwd_messages'][i]['attachments'],old['fwd_messages'][i]['attachments']):
+            return False
+    return True
+
+def compareAttachments(new,old):
+    if len(new) < len(old):
+        return False
+    return True
 
 def attachmentsParse(urls):
     html="""<div>"""
@@ -299,14 +298,10 @@ def getAttachments(message_id):
     attachments = tryAgainIfFailed(vk.messages.getById,delay=0.5,message_ids=message_id)['items'][0]
     hasUpdateTime = 'update_time' in attachments
     fwd_messages = None
-    try:
-        if attachments['fwd_messages'] != [] or attachments['reply_message'] != {}:
-            if attachments['fwd_messages'] == []:
-                fwd_messages = json.dumps([attachments['reply_message']],ensure_ascii=False,)
-            else:
-                fwd_messages = json.dumps(attachments['fwd_messages'],ensure_ascii=False,)
-    except KeyError:
-        pass
+    if 'reply_message' in attachments:
+        fwd_messages = json.dumps([attachments['reply_message']],ensure_ascii=False,)
+    elif attachments['fwd_messages'] != []:
+        fwd_messages = json.dumps(attachments['fwd_messages'],ensure_ascii=False,)
     attachments = attachments['attachments']
     if attachments == []:
         attachments = None
@@ -420,7 +415,7 @@ def fwdParse(fwd):
             html+=attachmentsParse(parseUrls(i['attachments']))
         if 'fwd_messages' in i:
             html+=fwdParse(i['fwd_messages'])
-        if 'reply_message' in i:
+        elif 'reply_message' in i:
             html+=fwdParse([i['reply_message']])
         html+="</td></tr>"
         html+="<tr><td>{}</td></tr>".format(time.ctime(i['date']))
