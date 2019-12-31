@@ -1,0 +1,42 @@
+#!/bin/sh
+
+ACCESS_TOKEN=
+
+PYTHON_PATH=/usr/bin/python3
+SCRIPT_PATH=/media/data/vkCacheBot/vkLongpollLogger.py
+flag=/tmp/$(echo $ACCESS_TOKEN|head -c 8)
+
+function runner {
+(while true; do
+    $PYTHON_PATH $SCRIPT_PATH $ACCESS_TOKEN > /dev/null 2>&1
+    if [ -e "$flag" ]; then
+        rm $flag > /dev/null 2>&1
+        break
+    fi 
+done) &
+}
+
+case "$1" in
+
+  start)
+    if pgrep -f $ACCESS_TOKEN > /dev/null; then
+        echo "Process is already running"
+    else
+        echo "starting vkCacheBot"
+        runner
+    fi
+  ;;
+
+  stop)
+    echo "stopping"
+    touch $flag
+    pgrep -f $ACCESS_TOKEN | xargs kill > /dev/null 2>&1
+  ;;
+
+  restart)
+    echo "restarting"
+    pgrep -f $ACCESS_TOKEN | xargs kill > /dev/null 2>&1
+  ;;
+
+esac
+exit 0
