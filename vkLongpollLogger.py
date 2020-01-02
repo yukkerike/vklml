@@ -31,6 +31,7 @@ def tryAgainIfFailed(func, delay=5, *args, **kwargs):
             continue
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
+longpoll = VkLongPoll(vk_session, wait=90, mode=2)
 vk = vk_session.get_api()
 account_id = tryAgainIfFailed(vk.users.get,delay=0.5)[0]['id']
 
@@ -64,21 +65,24 @@ else:
 
 def bgWatcher():
     global maxCacheAge
+    global stop
     while True:
-        global stop
         while stop:
             time.sleep(2)
         stop = True
-        showMessagesWithDeletedAttachments()
-        if maxCacheAge != -1:
-            cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (time.time()-maxCacheAge,))
-            conn.commit()
-        else:
-            maxCacheAge = 86400
-        stop = False
-        if createIndex:
-            global prevDate
-            prevDate = updateIndex(cwd,prevDate)
+        try:
+            showMessagesWithDeletedAttachments()
+            if maxCacheAge != -1:
+                cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (time.time()-maxCacheAge,))
+                conn.commit()
+            else:
+                maxCacheAge = 86400
+            stop = False
+            if createIndex:
+                global prevDate
+                prevDate = updateIndex(cwd,prevDate)
+        except BaseException:
+            stop = False
         time.sleep(maxCacheAge)
 
 def interrupt_handler(signum, frame):
@@ -134,8 +138,8 @@ if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
     f.close()
 
 def main():
+    global stop
     for event in longpoll.listen():
-        global stop
         while stop:
             time.sleep(2)
         stop = True
@@ -216,7 +220,6 @@ def showMessagesWithDeletedAttachments():
         else:
             del fetch_attachments[i-c]
             c+=1
-    c=0
     messages_attachments = []
     messages_fwd = []
     for i in [[j[0] for j in fetch_attachments[i:i + 100]] for i in range(0, len(fetch_attachments), 100)]:
@@ -255,7 +258,7 @@ def compareFwd(new,old):
     if 'reply_message' in old:
         old['fwd_messages']=[old['reply_message']]
     for i in range(len(old['fwd_messages'])):
-        if 'fwd_messages' in old['fwd_messages'][i]:
+        if 'fwd_messages' in old['fwd_messages'][i] and 'fwd_messages' in new['fwd_messages'][i]:
             if not compareFwd(new['fwd_messages'][i],old['fwd_messages'][i]):
                 return False
         if not compareAttachments(new['fwd_messages'][i]['attachments'],old['fwd_messages'][i]['attachments']):
@@ -545,8 +548,6 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
 stop = False
 tableWatcher = threading.Thread(target=bgWatcher)
 tableWatcher.start()
-
-longpoll = VkLongPoll(vk_session, wait=90, mode=2)
 
 flags = (262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1)
 sizes = ("s","m","x","o","p","q","r","y","z","w")
