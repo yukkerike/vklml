@@ -13,8 +13,8 @@ createIndex = False
 maxCacheAge = 86400
 
 if createIndex:
-    from updateIndex import updateIndex
-    prevDate = 1
+    from updateIndex import indexUpdater
+    iu = indexUpdater()
 
 if len(sys.argv)>1 :
     ACCESS_TOKEN = sys.argv[1]
@@ -78,9 +78,6 @@ def bgWatcher():
             else:
                 maxCacheAge = 86400
             stop = False
-            if createIndex:
-                global prevDate
-                prevDate = updateIndex(cwd,prevDate)
         except BaseException:
             stop = False
         time.sleep(maxCacheAge)
