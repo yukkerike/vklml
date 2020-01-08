@@ -137,30 +137,18 @@ if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
 </html>""".format(ACCESS_TOKEN))
     f.close()
 
-def main():
+def predefinedActions():
+    global events
     global stop
-    for event in longpoll.listen():
-        while stop:
-            time.sleep(2)
-        stop = True
-        attachments = fwd_messages = None      
-        try:
-            if event.type == VkEventType.MESSAGE_NEW:
-                if event.from_user:
-                    if event.from_me:
-                        event.user_id = account_id
-                elif event.from_group:
-                    if event.from_me:
-                        event.user_id = account_id
-                    else:
-                        event.user_id = event.peer_id
-                cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
-                conn.commit()
-            elif event.type == VkEventType.MESSAGE_EDIT:
-                hasUpdateTime = True
-                cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
-                fetch = cursor.fetchone()
-                if fetch is None:
+    while True:
+        if events != []:
+            event = events.pop(0)
+            while stop:
+                time.sleep(2)
+            stop = True
+            attachments = fwd_messages = None      
+            try:
+                if event.type == VkEventType.MESSAGE_NEW:
                     if event.from_user:
                         if event.from_me:
                             event.user_id = account_id
@@ -169,43 +157,65 @@ def main():
                             event.user_id = account_id
                         else:
                             event.user_id = event.peer_id
-                    event.message='⚠️ '+event.message
                     cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
                     conn.commit()
-                if event.attachments != {}:
-                    hasUpdateTime, attachments, fwd_messages = getAttachments(event.message_id)
-                if hasUpdateTime:
-                    activityReport(event.message_id, True, attachments, fwd_messages, event.text, hasUpdateTime)
-                cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (event.message, attachments, fwd_messages, event.message_id,))
-                conn.commit()
-            elif event.type == VkEventType.MESSAGE_FLAGS_SET:
-                hasUpdateTime = False
-                cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
-                fetch = cursor.fetchone()
-                if fetch is None:
-                    stop = False
-                    continue
-                if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может. Это ошибочно расценивается, как удаление сообщения.
-                    mask = event.mask
-                else:
-                    stop = False
-                    continue
-                messageFlags = []
-                for i in flags:
-                    mask-=i
-                    if mask < 0:
-                        mask+=i
-                    else:
-                        messageFlags.append(i)
-                if (131072 in messageFlags or 128 in messageFlags):
-                    activityReport(event.message_id)
-                    cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
+                elif event.type == VkEventType.MESSAGE_EDIT:
+                    hasUpdateTime = True
+                    cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
+                    fetch = cursor.fetchone()
+                    if fetch is None:
+                        if event.from_user:
+                            if event.from_me:
+                                event.user_id = account_id
+                        elif event.from_group:
+                            if event.from_me:
+                                event.user_id = account_id
+                            else:
+                                event.user_id = event.peer_id
+                        event.message='⚠️ '+event.message
+                        cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
+                        conn.commit()
+                    if event.attachments != {}:
+                        hasUpdateTime, attachments, fwd_messages = getAttachments(event.message_id)
+                    if hasUpdateTime:
+                        activityReport(event.message_id, True, attachments, fwd_messages, event.text, hasUpdateTime)
+                    cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (event.message, attachments, fwd_messages, event.message_id,))
                     conn.commit()
-        except BaseException as e:
-            f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
-            f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
-            f.close()
-        stop = False
+                elif event.type == VkEventType.MESSAGE_FLAGS_SET:
+                    hasUpdateTime = False
+                    cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
+                    fetch = cursor.fetchone()
+                    if fetch is None:
+                        stop = False
+                        continue
+                    if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может. Это ошибочно расценивается, как удаление сообщения.
+                        mask = event.mask
+                    else:
+                        stop = False
+                        continue
+                    messageFlags = []
+                    for i in flags:
+                        mask-=i
+                        if mask < 0:
+                            mask+=i
+                        else:
+                            messageFlags.append(i)
+                    if (131072 in messageFlags or 128 in messageFlags):
+                        activityReport(event.message_id)
+                        cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
+                        conn.commit()
+            except BaseException as e:
+                f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
+                f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
+                f.close()
+            stop = False
+        else:
+            time.sleep(1)
+
+def main():
+    global events
+    for event in longpoll.listen():
+        events.append(event)
 
 def showMessagesWithDeletedAttachments():
     cursor.execute("""SELECT * FROM messages WHERE attachments IS NOT NULL""")
@@ -551,5 +561,7 @@ tableWatcher.start()
 
 flags = (262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1)
 sizes = ("s","m","x","o","p","q","r","y","z","w")
+events = []
 
+threading.Thread(target=predefinedActions).start()
 tryAgainIfFailed(main, delay=5)
