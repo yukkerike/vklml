@@ -1,6 +1,10 @@
+*
 !.gitignore
 !LICENSE
 !README.md
 !requirements.txt
 !vkLongpollLogger.py
 !updateIndex.py
+!init.d
+!init.d/vkCacheBot
+!customActions.py
