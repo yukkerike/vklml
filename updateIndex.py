@@ -17,7 +17,7 @@ class indexUpdater:
                                         if prevDate != date:
                                                 f.close()
                                                 self.generateIndex(cwd, date)        
-                                time.sleep(time.mktime(time.strptime(time.strftime("%b %Y",time.localtime(time.time()+2592000)),"%b %Y")))
+                                time.sleep(86400)
                                 
         def generateIndex(self, cwd, date):
                 f = open(os.path.join(cwd, "mesAct",  'index.html'), 'w')
