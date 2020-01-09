@@ -154,7 +154,7 @@ def predefinedActions():
                             event.user_id = account_id
                         else:
                             event.user_id = event.peer_id
-                    cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
+                    cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.timestamp),))
                     conn.commit()
                 elif event.type == VkEventType.MESSAGE_EDIT:
                     hasUpdateTime = True
@@ -170,7 +170,7 @@ def predefinedActions():
                             else:
                                 event.user_id = event.peer_id
                         event.message='⚠️ '+event.message
-                        cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.from_chat,event.from_user,event.from_group,event.timestamp),))
+                        cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.timestamp),))
                         conn.commit()
                     if event.attachments != {}:
                         hasUpdateTime, attachments, fwd_messages = getAttachments(event.message_id)
@@ -305,14 +305,15 @@ def attachmentsParse(urls):
     return html
 
 def getAttachments(message_id):
-    attachments = tryAgainIfFailed(vk.messages.getById,delay=0.5,message_ids=message_id)['items'][0]
-    hasUpdateTime = 'update_time' in attachments
+    mes = tryAgainIfFailed(vk.messages.getById,delay=0.5,message_ids=message_id)['items'][0]
+    hasUpdateTime = 'update_time' in mes
     fwd_messages = None
-    if 'reply_message' in attachments:
-        fwd_messages = json.dumps([attachments['reply_message']],ensure_ascii=False,)
-    elif attachments['fwd_messages'] != []:
-        fwd_messages = json.dumps(attachments['fwd_messages'],ensure_ascii=False,)
-    attachments = attachments['attachments']
+    if 'reply_message' in mes:
+        fwd_messages = json.dumps([mes['reply_message']],ensure_ascii=False,)
+    elif mes['fwd_messages'] != []:
+        fwd_messages = json.dumps(mes['fwd_messages'],ensure_ascii=False,)
+    attachments = mes['attachments']
+    del mes
     if attachments == []:
         attachments = None
     else:
@@ -395,7 +396,7 @@ def getPeerName(id):
             name = fetch[1]
     return name
 
-def parseEvent(message_id, peer_id, user_id, message, attachments, from_chat, from_user, from_group, timestamp):
+def parseEvent(message_id, peer_id, user_id, message, attachments, timestamp):
     if attachments != {}:
         hasUpdateTime, attachments, fwd_messages = getAttachments(message_id)
     else:
