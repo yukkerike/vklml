@@ -31,7 +31,7 @@ def tryAgainIfFailed(func, delay=5, *args, **kwargs):
             continue
 
 vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
-longpoll = VkLongPoll(vk_session, wait=90, mode=2)
+longpoll = VkLongPoll(vk_session, wait=10, mode=2)
 vk = vk_session.get_api()
 account_id = tryAgainIfFailed(vk.users.get,delay=0.5)[0]['id']
 
@@ -106,30 +106,30 @@ if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
     <body>
         <input id="videos"></input>
         <input type="submit" id="submit" value="Отправить">
+        <div><p>Если видео не проигрывается, прямую ссылку можно получить через api:</p></div>
+        <div style="position:relative;padding-top:56.25%;"></div>
         <script>
             let ACCESS_TOKEN = '{}';
             document.getElementById('submit').onclick = function() {{
+                var link = document.createElement('a');
+                link.href = "https://vk.com/dev/video.get?params[videos]=0_0," + videos.value + "&params[count]=1&params[offset]=1";
+                link.innerText = videos.value;
                 document.getElementById('submit').disabled = true;
+                document.getElementsByTagName("div")[0].appendChild(link);
                 var script = document.createElement('SCRIPT');
                 script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + videos.value + "&callback=callbackFunc";
                 document.getElementsByTagName("head")[0].appendChild(script);
             }}
             function callbackFunc(result) {{
-                var link = document.createElement('a');
-                link.href = "https://vk.com/dev/video.get?params[videos]=" + videos.value + "&params[count]=2&params[offset]=-1";
-                link.innerText = videos.value;
                 var frame = document.createElement('iframe');
                 frame.src = result.response.items[0]["player"];
                 frame.style = "position:absolute;top:0;left:0;width:100%;height:100%;";
-                document.getElementsByTagName("div")[0].appendChild(link);
                 document.getElementsByTagName("div")[1].appendChild(frame);
             }}
             let videos = document.getElementById('videos');
             videos.value = document.location.search.slice(1);
             if (videos.value != "") document.getElementById('submit').click()
         </script>
-        <div><p>Если видео не проигрывается, прямую ссылку можно получить через api:</p></div>
-        <div style="position:relative;padding-top:56.25%;"></div>
     </body>
 </html>""".format(ACCESS_TOKEN))
     f.close()
