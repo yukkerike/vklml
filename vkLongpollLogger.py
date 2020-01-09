@@ -11,6 +11,7 @@ import sys
 ACCESS_TOKEN = ""
 createIndex = False
 maxCacheAge = 86400
+customActions = False
 
 if createIndex:
     from updateIndex import indexUpdater
@@ -62,6 +63,10 @@ if not os.path.exists(os.path.join(cwd, "messages.db")):
 else:
     conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False,timeout=15.0)
     cursor = conn.cursor()
+
+if customActions:
+    from customActions import customActions
+    cust = customActions(vk,conn,cursor)
 
 def bgWatcher():
     global maxCacheAge
@@ -145,6 +150,8 @@ def predefinedActions():
             stop = True
             attachments = fwd_messages = None      
             try:
+                if customActions:
+                    cust.act(event)
                 if event.type == VkEventType.MESSAGE_NEW:
                     if event.from_user:
                         if event.from_me:
