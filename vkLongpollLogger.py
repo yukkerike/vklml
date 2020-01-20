@@ -11,7 +11,7 @@ import sys
 ACCESS_TOKEN = ""
 createIndex = False
 maxCacheAge = 86400
-customActions = False
+customActions = True
 
 if createIndex:
     from updateIndex import indexUpdater
@@ -296,16 +296,16 @@ def attachmentsParse(urls):
             html+="""<img src="{}" wigth=/>""".format(i)
         elif i.find("mp3") != -1:
             html+="""<audio src="{}" controls></audio>""".format(i)
-        elif len(urlSplit) == 2 and i.find("https://vk.com/audio") == -1:
-            html+="""
-    <a href="{}" target="_blank">Видео
-    <img src="{}"/>
-    </a>""".format("./vkGetVideoLink.html?"+urlSplit[1],urlSplit[0])
         elif i.find("https://vk.com/audio") != -1:
             html+="""<a href="{}" target="_blank">{}</a>""".format(i,i[23:-11].replace("%20"," "))
         elif i.find("@") != -1:
             i = i.split("@")
             html+="""<a href="{}" target="_blank">{}</a>""".format(i[1],i[0])
+        elif len(urlSplit) == 2:
+            html+="""
+    <a href="{}" target="_blank">Видео
+    <img src="{}"/>
+    </a>""".format("./vkGetVideoLink.html?"+urlSplit[1],urlSplit[0])
         else:
             html+="""<a href="{0}" target="_blank">{0}</a>""".format(i)
     html+="</div>"
