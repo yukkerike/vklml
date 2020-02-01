@@ -11,7 +11,7 @@ import sys
 ACCESS_TOKEN = ""
 createIndex = False
 maxCacheAge = 86400
-customActions = True
+customActions = False
 
 if createIndex:
     from updateIndex import indexUpdater
@@ -465,6 +465,9 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
         <head>
                 <meta charset="utf-8">
                 <style>
+                        .mes{
+                            word-break: break-all;
+                        }
                         img, a, audio{
                                 display: block;
                         }
@@ -520,7 +523,7 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
                     <b>Старое</b><br />
                     """
             if not oldMessage is None:
-                row+=oldMessage.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
+                row+="<div class='mes'>"+oldMessage.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"+"</div>"
             if not oldAttachments is None:
                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
             if not oldFwd is None:
@@ -531,7 +534,7 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
                     <b>Новое</b><br />
                     """
             if not message is None:
-                row+=message.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
+                row+="<div class='mes'>"+message.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"+"</div>"
             if not attachments is None:
                 row+="<b>Вложения</b><br />"+attachmentsParse(attachments)+"<br />"
             if not fwd is None:
@@ -543,7 +546,7 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
                 <td width="100%" colspan='2'><b>Удалено</b><br />
                 """
             if not oldMessage is None:
-                row+=oldMessage.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"
+                row+="<div class='mes'>"+oldMessage.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")+"<br />"+"</div>"
             if not oldAttachments is None:
                 row+="<b>Вложения</b><br />"+attachmentsParse(oldAttachments)+"<br />"
             if not oldFwd is None:
@@ -556,7 +559,7 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
         f.close()
     finally:
         row+="</tr>"
-        messagesDump = messagesDump[:478]+row+messagesDump[478:]
+        messagesDump = messagesDump[:569]+row+messagesDump[569:]
         messagesActivities.write(messagesDump)
         messagesActivities.close()
 
