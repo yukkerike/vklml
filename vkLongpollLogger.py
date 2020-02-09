@@ -208,6 +208,8 @@ def predefinedActions():
                         activityReport(event.message_id)
                         cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
                         conn.commit()
+            except sqlite3.IntegrityError:
+                interrupt_handler(0, None)
             except BaseException as e:
                 f = open(os.path.join(cwd, 'errorLog.txt'), 'a+', encoding="utf-8")
                 f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
