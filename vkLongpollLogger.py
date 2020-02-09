@@ -102,7 +102,7 @@ if not os.path.exists(os.path.join(cwd, "mesAct")):
     os.makedirs(os.path.join(cwd, "mesAct"))
 
 if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
-    f = open(os.path.join(cwd, "mesAct",  'vkGetVideoLink.html'), 'w')
+    f = open(os.path.join(cwd, "mesAct",  'vkGetVideoLink.html'), 'w', encoding="utf-8")
     f.write("""<!DOCTYPE html>
 <html>
     <head>
@@ -209,7 +209,7 @@ def predefinedActions():
                         cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
                         conn.commit()
             except BaseException as e:
-                f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
+                f = open(os.path.join(cwd, 'errorLog.txt'), 'a+', encoding="utf-8")
                 f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
                 f.close()
             stop = False
@@ -459,7 +459,7 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
             <tr>
                 <td>"""
         if not os.path.exists(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html")):
-            f = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
+            f = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w',encoding="utf-8")
             f.write("""
 <html>
         <head>
@@ -482,10 +482,10 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
         </body>
 </html>""")
             f.close()
-        messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'r')
+        messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'r',encoding="utf-8")
         messagesDump = messagesActivities.read()
         messagesActivities.close()
-        messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w')
+        messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w',encoding="utf-8")
         peer_name = getPeerName(fetch[0])
         user_name = getPeerName(fetch[1])
         date = time.ctime(fetch[5])
@@ -554,7 +554,7 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
             row+="</td>\n<td>"
             row+=date+"</td>"
     except BaseException as e:
-        f = open(os.path.join(cwd, 'errorLog.txt'), 'a+')
+        f = open(os.path.join(cwd, 'errorLog.txt'), 'a+',encoding="utf-8")
         f.write(str(e)+" "+row+" "+time.ctime(time.time())+"\n\n")
         f.close()
     finally:
