@@ -77,14 +77,21 @@ def bgWatcher():
         stop = True
         try:
             showMessagesWithDeletedAttachments()
+        except BaseException as e:
+            f = open(os.path.join(cwd, 'errorLog.txt'), 'a+',encoding="utf-8")
+            f.write(str(e)+time.ctime(time.time())+"\n\n")
+            f.close()
+        try:
             if maxCacheAge != -1:
                 cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (time.time()-maxCacheAge,))
                 conn.commit()
             else:
                 maxCacheAge = 86400
-            stop = False
-        except BaseException:
-            stop = False
+        except BaseException as e:
+            f = open(os.path.join(cwd, 'errorLog.txt'), 'a+',encoding="utf-8")
+            f.write(str(e)+time.ctime(time.time())+"\n\n")
+            f.close()
+        stop = False
         time.sleep(maxCacheAge)
 
 def interrupt_handler(signum, frame):
