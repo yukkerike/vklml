@@ -7,21 +7,23 @@ import signal
 import threading
 import time
 import sys
+import logging
 
-ACCESS_TOKEN = ""
-createIndex = False
-maxCacheAge = 86400
-customActions = False
+cwd = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(cwd, 'config.json'), "r") as conf:
+    config = json.loads(conf.read())
 
-if createIndex:
+logging.basicConfig(filename=os.path.join(cwd, 'errorLog.txt'), format='%(asctime)s - %(message)s')
+
+if config['createIndex']:
     from updateIndex import indexUpdater
     iu = indexUpdater()
 
 if len(sys.argv)>1 :
-    ACCESS_TOKEN = sys.argv[1]
-if ACCESS_TOKEN == "":
+    config['ACCESS_TOKEN'] = sys.argv[1]
+if config['ACCESS_TOKEN'] == "":
     raise Exception("Не задан ACCESS_TOKEN")
-cwd = os.path.dirname(os.path.abspath(__file__))
+
 
 def tryAgainIfFailed(func, delay=5, *args, **kwargs):
     while True:
@@ -31,7 +33,7 @@ def tryAgainIfFailed(func, delay=5, *args, **kwargs):
             time.sleep(delay)
             continue
 
-vk_session = vk_api.VkApi(token=ACCESS_TOKEN)
+vk_session = vk_api.VkApi(token=config['ACCESS_TOKEN'])
 longpoll = VkLongPoll(vk_session, wait=10, mode=2)
 vk = vk_session.get_api()
 account_id = tryAgainIfFailed(vk.users.get,delay=0.5)[0]['id']
@@ -64,23 +66,21 @@ else:
     conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False,timeout=15.0)
     cursor = conn.cursor()
 
-if customActions:
+if config['customActions']:
     from customActions import customActions
     cust = customActions(vk,conn,cursor)
 
 def bgWatcher():
-    global maxCacheAge
     global stop
     while True:
+        maxCacheAge = config['maxCacheAge']
         while stop:
             time.sleep(2)
         stop = True
         try:
             showMessagesWithDeletedAttachments()
         except BaseException as e:
-            f = open(os.path.join(cwd, 'errorLog.txt'), 'a+',encoding="utf-8")
-            f.write(str(e)+time.ctime(time.time())+"\n\n")
-            f.close()
+            logging.exception("Ошибка при поиске удаленных фото")
         try:
             if maxCacheAge != -1:
                 cursor.execute("""DELETE FROM messages WHERE timestamp < ?""", (time.time()-maxCacheAge,))
@@ -88,9 +88,7 @@ def bgWatcher():
             else:
                 maxCacheAge = 86400
         except BaseException as e:
-            f = open(os.path.join(cwd, 'errorLog.txt'), 'a+',encoding="utf-8")
-            f.write(str(e)+time.ctime(time.time())+"\n\n")
-            f.close()
+            logging.exception("Ошибка при очистке базы данных")
         stop = False
         time.sleep(maxCacheAge)
 
@@ -143,10 +141,10 @@ if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
             if (videos.value != "") document.getElementById('submit').click()
         </script>
     </body>
-</html>""".format(ACCESS_TOKEN))
+</html>""".format(config['ACCESS_TOKEN']))
     f.close()
 
-def predefinedActions():
+def eventWorker():
     global events
     global stop
     while True:
@@ -155,75 +153,61 @@ def predefinedActions():
             while stop:
                 time.sleep(2)
             stop = True
-            attachments = fwd_messages = None      
-            try:
-                if customActions:
+            if not config['disableMessagesLogging']:
+                predefinedActions(event)
+            if config['customActions']:
                     cust.act(event)
-                if event.type == VkEventType.MESSAGE_NEW:
-                    if event.from_user:
-                        if event.from_me:
-                            event.user_id = account_id
-                    elif event.from_group:
-                        if event.from_me:
-                            event.user_id = account_id
-                        else:
-                            event.user_id = event.peer_id
-                    cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.timestamp),))
-                    conn.commit()
-                elif event.type == VkEventType.MESSAGE_EDIT:
-                    hasUpdateTime = True
-                    cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
-                    fetch = cursor.fetchone()
-                    if fetch is None:
-                        if event.from_user:
-                            if event.from_me:
-                                event.user_id = account_id
-                        elif event.from_group:
-                            if event.from_me:
-                                event.user_id = account_id
-                            else:
-                                event.user_id = event.peer_id
-                        event.message='⚠️ '+event.message
-                        cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.timestamp),))
-                        conn.commit()
-                    if event.attachments != {}:
-                        hasUpdateTime, attachments, fwd_messages = getAttachments(event.message_id)
-                    if hasUpdateTime:
-                        activityReport(event.message_id, True, attachments, fwd_messages, event.text, hasUpdateTime)
-                    cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (event.message, attachments, fwd_messages, event.message_id,))
-                    conn.commit()
-                elif event.type == VkEventType.MESSAGE_FLAGS_SET:
-                    hasUpdateTime = False
-                    cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
-                    fetch = cursor.fetchone()
-                    if fetch is None:
-                        stop = False
-                        continue
-                    if event.mask != 4096: #На голосовые сообщения, отправленные владельцем токена, устанавливается маска, равная 4096, чего в норме быть не может. Это ошибочно расценивается, как удаление сообщения.
-                        mask = event.mask
-                    else:
-                        stop = False
-                        continue
-                    messageFlags = []
-                    for i in flags:
-                        mask-=i
-                        if mask < 0:
-                            mask+=i
-                        else:
-                            messageFlags.append(i)
-                    if (131072 in messageFlags or 128 in messageFlags):
-                        activityReport(event.message_id)
-                        cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
-                        conn.commit()
-            except sqlite3.IntegrityError:
-                interrupt_handler(0, None)
-            except BaseException as e:
-                f = open(os.path.join(cwd, 'errorLog.txt'), 'a+', encoding="utf-8")
-                f.write(str(e)+" "+str(event.message_id)+" "+str(vars(event))+" "+time.ctime(event.timestamp)+"\n\n")
-                f.close()
             stop = False
         else:
-            time.sleep(1)
+            time.sleep(0.1)
+
+def predefinedActions(event):
+    try:
+        attachments = fwd_messages = None      
+        if event.type == VkEventType.MESSAGE_NEW:
+            if event.from_user:
+                if event.from_me:
+                    event.user_id = account_id
+            elif event.from_group:
+                if event.from_me:
+                    event.user_id = account_id
+                else:
+                    event.user_id = event.peer_id
+            cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(*parseEvent(event.message_id,event.peer_id,event.user_id,event.message,event.attachments,event.timestamp),))
+            conn.commit()
+        elif event.type == VkEventType.MESSAGE_EDIT:
+            hasUpdateTime = True
+            if event.from_user:
+                if event.from_me:
+                    event.user_id = account_id
+            elif event.from_group:
+                if event.from_me:
+                    event.user_id = account_id
+                else:
+                    event.user_id = event.peer_id
+            if event.attachments != {}:
+                hasUpdateTime, attachments, fwd_messages = getAttachments(event.message_id)
+            if hasUpdateTime:
+                activityReport(event.message_id, event.peer_id, event.user_id, event.timestamp, True, attachments, fwd_messages, event.text, hasUpdateTime)
+            cursor.execute("""UPDATE messages SET message = ?, attachments = ?, fwd_messages = ? WHERE message_id = ?""", (event.message, attachments, fwd_messages, event.message_id,))
+            conn.commit()
+        elif event.type == VkEventType.MESSAGE_FLAGS_SET:
+            cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (event.message_id,))
+            fetch = cursor.fetchone()
+            if fetch is None:
+                stop = False
+                return
+            if (event.mask & 131072 or event.mask & 128):
+                try:
+                    activityReport(event.message_id)
+                    cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
+                    conn.commit()
+                except TypeError:
+                    return
+    except sqlite3.IntegrityError:
+        interrupt_handler(0, None)
+    except BaseException as e:
+        logging.exception(str(vars(event)))
 
 def main():
     global events
@@ -341,13 +325,15 @@ def parseUrls(attachments):
     for i in attachments:
         type = i['type']
         if type == 'photo':
-            realSizesIndex = 0
-            virtSizesIndex = sizes.index(i['photo']['sizes'][0]['type'])
-            for j in range(1,len(i['photo']['sizes'])):
-                temp = sizes.index(i['photo']['sizes'][j]['type'])
-                if temp > virtSizesIndex:
-                    virtSizesIndex = temp
-                    realSizesIndex = j
+            availableSizes = []
+            for j in i['photo']['sizes']:
+                availableSizes.append(j['type'])
+            for j in sizes:
+                try:
+                    realSizesIndex = availableSizes.index(j)
+                except TypeError:
+                    continue
+                break
             urls.append(i['photo']['sizes'][realSizesIndex]['url'])
         elif type == 'audio_message':
             urls.append(i['audio_message']['link_mp3'])
@@ -449,21 +435,39 @@ def fwdParse(fwd):
     html+="</table>"
     return html
 
-def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  message=None, hasUpdateTime=False):
+def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdited=False, attachments=None, fwd=None,  message=None, hasUpdateTime=False):
     try:
         peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = None
         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
         fetch = cursor.fetchone()
-        if not fetch[3] is None:
-            oldMessage = str(fetch[3])
         if not attachments is None:
             attachments = parseUrls(json.loads(attachments))
         if not fwd is None:
             fwd = json.loads(fwd)
-        if not fetch[4] is None:
-            oldAttachments = parseUrls(json.loads(fetch[4]))
-        if not fetch[6] is None:
-            oldFwd = json.loads(fetch[6])
+        if fetch is None:
+            if isEdited:
+                fetch = [0]*7
+                peer_name = getPeerName(peer_id)
+                user_name = getPeerName(user_id)
+                oldMessage =  '⚠️ ' + message
+                oldAttachments = attachments
+                oldFwd = fwd
+                date = time.ctime(timestamp)
+            else:
+                raise TypeError
+        else:
+            if not fetch[3] is None:
+                oldMessage = str(fetch[3])
+            if not fetch[4] is None:
+                oldAttachments = parseUrls(json.loads(fetch[4]))
+            if not fetch[6] is None:
+                oldFwd = json.loads(fetch[6])
+            peer_name = getPeerName(fetch[0])
+            user_name = getPeerName(fetch[1])
+            date = time.ctime(fetch[5])
+            peer_id = fetch[0]
+            user_id = fetch[1]
+        del fetch
         row = """
             <tr>
                 <td>"""
@@ -495,12 +499,6 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
         messagesDump = messagesActivities.read()
         messagesActivities.close()
         messagesActivities = open(os.path.join(cwd, "mesAct", "messages_"+time.strftime("%d%m%y",time.localtime())+".html"),'w',encoding="utf-8")
-        peer_name = getPeerName(fetch[0])
-        user_name = getPeerName(fetch[1])
-        date = time.ctime(fetch[5])
-        peer_id = fetch[0]
-        user_id = fetch[1]
-        del fetch
         row+="""{}</td>
                 <td>""".format(str(message_id))
         if peer_id > 2000000000:
@@ -563,9 +561,7 @@ def activityReport(message_id, isEdited=False, attachments=None, fwd=None,  mess
             row+="</td>\n<td>"
             row+=date+"</td>"
     except BaseException as e:
-        f = open(os.path.join(cwd, 'errorLog.txt'), 'a+',encoding="utf-8")
-        f.write(str(e)+" "+row+" "+time.ctime(time.time())+"\n\n")
-        f.close()
+        logging.exception(row)
     finally:
         row+="</tr>"
         messagesDump = messagesDump[:569]+row+messagesDump[569:]
@@ -576,9 +572,8 @@ stop = False
 tableWatcher = threading.Thread(target=bgWatcher)
 tableWatcher.start()
 
-flags = (262144, 131072, 65536, 512, 256, 128, 64, 32, 16, 8, 4, 2, 1)
-sizes = ("s","m","x","o","p","q","r","y","z","w")
+sizes = ('w', 'z', 'y', 'r', 'q', 'p', 'o', 'x', 'm', 's')
 events = []
 
-threading.Thread(target=predefinedActions).start()
+threading.Thread(target=eventWorker).start()
 tryAgainIfFailed(main, delay=5)
