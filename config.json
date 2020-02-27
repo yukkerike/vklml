@@ -1,7 +1,8 @@
 {
-    "ACCESS_TOKEN":"",
-    "createIndex":false,
-    "maxCacheAge":86400,
-    "customActions":false,
-    "disableMessagesLogging":false
- }
+    "ACCESS_TOKEN": "",
+    "createIndex": false,
+    "maxCacheAge": 86400,
+    "customActions": false,
+    "disableMessagesLogging": false,
+    "disableInfoMessages": false
+}
