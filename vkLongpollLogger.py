@@ -56,7 +56,7 @@ def tryAgainIfFailed(func, delay=5, *args, **kwargs):
         try:
             return func(*args, **kwargs)
         except BaseException:
-            logger.warning("Перезапуск " + func.__name__ + " через " + delay + " секунд...")
+            logging.warning("Перезапуск " + func.__name__ + " через " + str(delay) + " секунд...")
             time.sleep(delay)
             continue
 
