@@ -30,12 +30,12 @@ case "$1" in
   stop)
     echo "stopping"
     touch $flag
-    pgrep -f $ACCESS_TOKEN | xargs kill > /dev/null 2>&1
+    pgrep -f $SCRIPT_PATH | xargs kill > /dev/null 2>&1
   ;;
 
   restart)
     echo "restarting"
-    pgrep -f $ACCESS_TOKEN | xargs kill > /dev/null 2>&1
+    pgrep -f $SCRIPT_PATH | xargs kill > /dev/null 2>&1
   ;;
 
 esac

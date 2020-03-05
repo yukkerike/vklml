@@ -5,7 +5,10 @@
 !requirements.txt
 !vkLongpollLogger.py
 !updateIndex.py
-!init.d
-!init.d/vkCacheBot
+!flaskWebServer.py
+!autostart
+!autostart/vkCacheBot
+!autostart/vkCacheBot.service
+!/autostart/vkCacheBot.vbs
 !customActions.py
 !config.json

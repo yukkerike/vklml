@@ -6,18 +6,26 @@ import json
 cwd = os.path.dirname(os.path.abspath(__file__))
 defaultConfig = {
     "ACCESS_TOKEN":"",
-    "createIndex":True,
+    "createIndex":False,
     "maxCacheAge":86400,
     "customActions":False,
     "disableMessagesLogging":False,
-    "disableInfoMessages":False
+    "placeTokenInGetVideo":True,
+    'enableFlaskWebServer':False,
+    'useAuth':True,
+    'port':8080,
+    'users':{
+        'admin':'password'
+    }
 }
+
 try:
     with open(os.path.join(cwd, 'config.json'), "r") as conf:
         config = json.load(conf)
     for i in config:
-        defaultConfig[i] = config[i]
-    if len(config) != len(defaultConfig):
+        if i in defaultConfig:
+            defaultConfig[i] = config[i]
+    if set(config) - set(defaultConfig) != 0:
         with open(os.path.join(cwd, 'config.json'), "w") as conf:
             json.dump(defaultConfig, conf, indent=4)
     config = defaultConfig
@@ -25,11 +33,14 @@ try:
 except (FileNotFoundError, json.decoder.JSONDecodeError):
     with open(os.path.join(cwd, 'config.json'), "w") as conf:
         json.dump(defaultConfig, conf, indent=4)
-if config['disableInfoMessages']:
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',stream=sys.stdout, level=logging.WARNING)
-else:
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',stream=sys.stdout, level=logging.INFO)
-logging.info("Запуск...")
+
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',stream=sys.stdout, level=logging.WARNING)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler(os.path.join(cwd, 'log.txt'))
+handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
+logger.info("Запуск...")
 
 import vk_api
 from vk_api.longpoll import VkLongPoll, VkEventType   
@@ -38,9 +49,18 @@ import signal
 import threading
 import time
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.ERROR)
-logger.addHandler(logging.FileHandler(os.path.join(cwd, 'errorLog.txt')))
+def runFlaskServer():
+    port = config['port']
+    while True:
+        try:
+            logger.info("Trying to run on http://0.0.0.0:"+str(port)+"/")
+            app.run(host='0.0.0.0',port=port)
+        except OSError:
+            port+=1
+
+if config['enableFlaskWebServer']:
+    from flaskWebServer import *
+    threading.Thread(target=runFlaskServer).start()
 
 if config['createIndex']:
     from updateIndex import indexUpdater
@@ -56,7 +76,7 @@ def tryAgainIfFailed(func, delay=5, *args, **kwargs):
         try:
             return func(*args, **kwargs)
         except BaseException:
-            logging.warning("Перезапуск " + func.__name__ + " через " + str(delay) + " секунд...")
+            logger.warning("Перезапуск " + func.__name__ + " через " + str(delay) + " секунд...")
             time.sleep(delay)
             continue
 
@@ -68,9 +88,8 @@ account_id = tryAgainIfFailed(vk.users.get,delay=1)[0]['id']
 if not config['disableMessagesLogging']:
     if not os.path.exists(os.path.join(cwd, "mesAct")):
         os.makedirs(os.path.join(cwd, "mesAct"))
-    if not os.path.exists(os.path.join(cwd, "mesAct",  "vkGetVideoLink.html")):
-        f = open(os.path.join(cwd, "mesAct",  'vkGetVideoLink.html'), 'w', encoding="utf-8")
-        f.write("""<!DOCTYPE html>
+    f = open(os.path.join(cwd, "mesAct",  'vkGetVideoLink.html'), 'w', encoding="utf-8")
+    f.write("""<!DOCTYPE html>
     <html>
         <head>
             <meta charset="utf-8">
@@ -103,8 +122,8 @@ if not config['disableMessagesLogging']:
                 if (videos.value != "") document.getElementById('submit').click()
             </script>
         </body>
-    </html>""".format(config['ACCESS_TOKEN']))
-        f.close()
+    </html>""".format(config['ACCESS_TOKEN'] if config['placeTokenInGetVideo'] else ""))
+    f.close()
     if not os.path.exists(os.path.join(cwd, "messages.db")):
         conn = sqlite3.connect(os.path.join(cwd, "messages.db"),check_same_thread=False,timeout=15.0)
         cursor = conn.cursor()
@@ -144,7 +163,7 @@ def bgWatcher():
         while stop:
             time.sleep(2)
         stop = True
-        logging.info("Обслуживание БД...")
+        logger.info("Обслуживание БД...")
         try:
             showMessagesWithDeletedAttachments()
         except BaseException as e:
@@ -159,7 +178,7 @@ def bgWatcher():
         except BaseException as e:
             logger.exception("Ошибка при очистке базы данных")
         stop = False
-        logging.info("Обслуживание БД завершено.")
+        logger.info("Обслуживание БД завершено.")
         time.sleep(maxCacheAge)
 
 def interrupt_handler(signum, frame):
@@ -169,70 +188,80 @@ def interrupt_handler(signum, frame):
         tableWatcher.cancel()
     except AttributeError:
         pass
+    logger.info("Завершение...")
     os._exit(0)
 
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+
+    logger.error("Непойманное исключение.", exc_info=(exc_type, exc_value, exc_traceback))
+
+sys.excepthook = handle_exception
+
 signal.signal(signal.SIGINT, interrupt_handler)
+signal.signal(signal.SIGTERM, interrupt_handler)
 
 def eventWorker_predefinedDisabled():
     global events
     global stop
     while True:
-        if events != []:
-            event = events.pop(0)
-            while stop:
-                time.sleep(2)
-            stop = True
-            cust.act(event)
-            stop = False
-        else:
-            time.sleep(1)
+        flag.wait()
+        event = events.pop(0)
+        while stop:
+            time.sleep(2)
+        stop = True
+        cust.act(event)
+        stop = False
+        if len(events) == 0:
+            flag.clear()
 
 def eventWorker_customDisabled():
     global events
     global stop
     while True:
-        if events != []:
-            event = events.pop(0)
-            while stop:
-                time.sleep(2)
-            stop = True
-            predefinedActions(event)
-            stop = False
-        else:
-            time.sleep(1)
+        flag.wait()
+        event = events.pop(0)
+        while stop:
+            time.sleep(2)
+        stop = True
+        predefinedActions(event)
+        stop = False
+        if len(events) == 0:
+            flag.clear()
+            conn.commit()
 
 def eventWorker():
     global events
     global stop
     while True:
-        if events != []:
-            event = events.pop(0)
-            while stop:
-                time.sleep(2)
-            stop = True
-            cust.act(event)
-            predefinedActions(event)
-            stop = False
-        else:
-            time.sleep(1)
+        flag.wait()
+        event = events.pop(0)
+        while stop:
+            time.sleep(2)
+        stop = True
+        cust.act(event)
+        predefinedActions(event)
+        stop = False
+        if len(events) == 0:
+            flag.clear()
+            conn.commit()
 
 def predefinedActions(event):
     try:     
         if event.type == VkEventType.MESSAGE_NEW:
             cursor.execute("""INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",(event.peer_id,event.user_id,event.message_id,event.message,event.message_data[1],event.timestamp,event.message_data[2],))
-            conn.commit()
         elif event.type == VkEventType.MESSAGE_EDIT:
             if event.message_data[0]:
                 activityReport(event.message_id, event.peer_id, event.user_id, event.timestamp, True, event.message_data[1], event.message_data[2], event.text)
             cursor.execute("""INSERT or REPLACE INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""", (event.peer_id,event.user_id,event.message_id,event.message,event.message_data[1],event.timestamp,event.message_data[2],))
-            conn.commit()
         elif event.type == VkEventType.MESSAGE_FLAGS_SET:
             try:
                 activityReport(event.message_id)
                 cursor.execute("""DELETE FROM messages WHERE message_id = ?""", (event.message_id,))
-                conn.commit()
             except TypeError:
-                logging.info("Удаление невозможно, сообщение отсутствует в БД.")
+                logger.info("Удаление невозможно, сообщение отсутствует в БД.")
     except sqlite3.IntegrityError:
         logger.warning("Запущено несколько копий программы. завершение...")
         interrupt_handler(0, None)
@@ -240,7 +269,7 @@ def predefinedActions(event):
         logger.exception(str(vars(event)))
 
 def main():
-    logging.info("Запущен основной цикл.")
+    logger.info("Запущен основной цикл.")
     global events
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW or event.type == VkEventType.MESSAGE_EDIT:
@@ -259,8 +288,10 @@ def main():
             if event.message == "":
                 event.message = None
             events.append(event)
+            flag.set()
         elif event.type == VkEventType.MESSAGE_FLAGS_SET and (event.mask & 131072 or event.mask & 128):
             events.append(event)
+            flag.set()
 
 def showMessagesWithDeletedAttachments():
     cursor.execute("""SELECT * FROM messages WHERE attachments IS NOT NULL""")
@@ -527,7 +558,7 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
             fwd = json.loads(fwd)
         if fetch is None:
             if isEdited:
-                logging.info("Изменение сообщения, отсутствующего в БД, message_id = " + str(message_id) + ".")
+                logger.info("Изменение сообщения, отсутствующего в БД, message_id = " + str(message_id) + ".")
                 fetch = [0]*7
                 peer_name = getPeerName(peer_id)
                 user_name = getPeerName(user_id)
@@ -693,6 +724,7 @@ if not config['disableMessagesLogging']:
     offset = template.index("""        </table>""")
 sizes = ('w', 'z', 'y', 'r', 'q', 'p', 'o', 'x', 'm', 's')
 events = []
+flag = threading.Event()
 
 if config['customActions'] and config['disableMessagesLogging']:
     threading.Thread(target=eventWorker_predefinedDisabled).start()

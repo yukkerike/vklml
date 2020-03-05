@@ -1,0 +1,10 @@
+[Unit]
+Description=vkCacheBot
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/vkCacheBot/vkLongpollLogger.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

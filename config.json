@@ -4,5 +4,11 @@
     "maxCacheAge": 86400,
     "customActions": false,
     "disableMessagesLogging": false,
-    "disableInfoMessages": false
+    "placeTokenInGetVideo": true,
+    "enableFlaskWebServer": false,
+    "useAuth": true,
+    "port": 8080,
+    "users": {
+        "admin": "password"
+    }
 }
