@@ -48,6 +48,7 @@ import sqlite3
 import signal
 import threading
 import time
+import difflib
 
 def runFlaskServer():
     port = config['port']
@@ -547,6 +548,23 @@ def fwdParse(fwd):
 def xssFilter(s):
     return s.replace("<","&lt;").replace(">","&gt;").replace("\n","<br />")
 
+def compareStrings(a, b):
+    aCounter=0
+    bConter=0
+    for i in difflib.SequenceMatcher(None, a, b).get_opcodes():
+        if i[0] == 'insert':
+            b=b[:i[3]+bConter]+'<ins>'+b[i[3]+bConter:i[4]+bConter]+'</ins>'+b[i[4]+bConter:]
+            bConter+=11
+        elif i[0] == 'delete':
+            a=a[:i[1]+aCounter]+'<ins>'+a[i[1]+aCounter:i[2]+aCounter]+'</ins>'+a[i[2]+aCounter:] 
+            aCounter+=11
+        elif i[0] == 'replace':
+            a=a[:i[1]+aCounter]+'<ins>'+a[i[1]+aCounter:i[2]+aCounter]+'</ins>'+a[i[2]+aCounter:]
+            b=b[:i[3]+bConter]+'<ins>'+b[i[3]+bConter:i[4]+bConter]+'</ins>'+b[i[4]+bConter:]
+            aCounter+=11
+            bConter+=11
+    return a, b
+
 def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdited=False, attachments=None, fwd=None,  message=None):
     try:
         peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = None
@@ -635,10 +653,18 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
                         {}
                     </a>""".format(str(user_id),user_name)
         if isEdited:
-            if not oldMessage is None:
-                oldMessage = messageBlock.format(xssFilter(oldMessage))
-            else:
+            if not (oldMessage is None or message is None):
+                message = xssFilter(message)
+                oldMessage = xssFilter(oldMessage)
+                message, oldMessage = compareStrings(message, oldMessage)
+                oldMessage = messageBlock.format(oldMessage)
+                message = messageBlock.format(message)
+            elif oldMessage is None:
                 oldMessage = ""
+                message = messageBlock.format(xssFilter(message))
+            else:
+                oldMessage = messageBlock.format(xssFilter(oldMessage))
+                message = ""
             if not oldAttachments is None:
                 oldAttachments = attachmentsBlock.format(attachmentsParse(oldAttachments))
             else:
@@ -647,10 +673,6 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
                 oldFwd = fwdBlock.format(fwdParse(oldFwd))
             else:
                 oldFwd = ""
-            if not message is None:
-                message = messageBlock.format(xssFilter(message))
-            else:
-                message = ""
             if not attachments is None:
                 attachments = attachmentsBlock.format(attachmentsParse(attachments))
             else:
