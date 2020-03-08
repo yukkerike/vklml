@@ -273,13 +273,13 @@ def main():
     logger.info("Запущен основной цикл.")
     global events
     for event in longpoll.listen():
-        if event.type == VkEventType.MESSAGE_NEW or event.type == VkEventType.MESSAGE_EDIT:
+        if event.raw[0] == 4 or event.raw[0] == 5:
             if event.attachments != {}:
                 event.message_data = tuple(getAttachments(event.message_id))
             else:
                 event.message_data = (True,None,None)
             if event.from_user:
-                if event.from_me:
+                if event.raw[2] & 2:
                     event.user_id = account_id
             elif event.from_group:
                 if event.from_me:
@@ -290,7 +290,7 @@ def main():
                 event.message = None
             events.append(event)
             flag.set()
-        elif event.type == VkEventType.MESSAGE_FLAGS_SET and (event.mask & 131072 or event.mask & 128):
+        elif event.raw[0] == 2 and (event.raw[2] & 131072 or event.raw[2] & 128):
             events.append(event)
             flag.set()
 
@@ -716,7 +716,7 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
         messagesActivities.write(messagesDump)
         messagesActivities.close()
     except BaseException as e:
-        logger.exception()
+        logger.exception("Ошибка при логгировании изменений.")
 
 stop = False
 
