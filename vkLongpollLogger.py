@@ -715,6 +715,8 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
         messagesDump = messagesDump[:offset]+row+messagesDump[offset:]
         messagesActivities.write(messagesDump)
         messagesActivities.close()
+    except TypeError:
+        raise TypeError
     except BaseException as e:
         logger.exception("Ошибка при логгировании изменений.")
 
