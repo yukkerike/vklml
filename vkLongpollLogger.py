@@ -389,7 +389,7 @@ def attachmentsParse(urls):
                                 Видео
                                 <img src="{}"/>
                             </a>
-                        """.format("/vkGetVideoLink.html?"+urlSplit[1],urlSplit[0])
+                        """.format("./vkGetVideoLink.html?"+urlSplit[1],urlSplit[0])
         else:
             html+="""    <a href="{0}" target="_blank">
                                 {0}
