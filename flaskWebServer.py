@@ -32,6 +32,11 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+@app.after_request
+def add_header(response):
+    response.cache_control.max_age = 0
+    return response
+
 @app.route("/")
 @requires_auth
 def index():
