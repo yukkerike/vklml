@@ -4,7 +4,7 @@ ACCESS_TOKEN=
 
 PYTHON_PATH=/usr/bin/python3
 SCRIPT_PATH=/media/data/vkCacheBot/vkLongpollLogger.py
-flag=/tmp/$(echo $ACCESS_TOKEN|head -c 8)
+flag=/tmp/stopFlag
 
 function runner {
 (while true; do
@@ -19,7 +19,7 @@ done) &
 case "$1" in
 
   start)
-    if pgrep -f $ACCESS_TOKEN > /dev/null; then
+    if pgrep -f $SCRIPT_PATH  > /dev/null; then
         echo "Process is already running"
     else
         echo "starting vkCacheBot"
