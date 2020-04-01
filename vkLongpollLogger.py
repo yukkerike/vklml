@@ -12,11 +12,17 @@ defaultConfig = {
     "disableMessagesLogging":False,
     "placeTokenInGetVideo":True,
     'enableFlaskWebServer':False,
-    'useAuth':True,
-    'port':8080,
+    'useAuth':False,
     'users':{
         'admin':'password'
-    }
+    },
+    'port':8080,
+    'https':False,
+    'httpsPort':8443,
+    'cert':[
+        os.path.join(cwd, 'cert.pem'),
+        os.path.join(cwd, 'key.pem')
+    ]
 }
 
 try:
@@ -33,6 +39,8 @@ try:
 except (FileNotFoundError, json.decoder.JSONDecodeError):
     with open(os.path.join(cwd, 'config.json'), "w") as conf:
         json.dump(defaultConfig, conf, indent=4)
+        config = defaultConfig
+        del defaultConfig
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',stream=sys.stdout, level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -51,11 +59,14 @@ import time
 import difflib
 
 def runFlaskServer():
-    port = config['port']
+    port = config['httpsPort'] if config['https'] else config['port']
     while True:
         try:
             logger.info("Trying to run on http://0.0.0.0:"+str(port)+"/")
-            app.run(host='0.0.0.0',port=port)
+            if config['https']:
+                app.run(host='0.0.0.0',port=port,ssl_context=(config['cert'][0], config['cert'][1]))
+            else:
+                app.run(host='0.0.0.0',port=port)
         except OSError:
             port+=1
 
