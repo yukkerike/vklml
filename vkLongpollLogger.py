@@ -62,10 +62,11 @@ def runFlaskServer():
     port = config['httpsPort'] if config['https'] else config['port']
     while True:
         try:
-            logger.info("Trying to run on http://0.0.0.0:"+str(port)+"/")
             if config['https']:
+                logger.info("Trying to run on https://0.0.0.0:"+str(port)+"/")
                 app.run(host='0.0.0.0',port=port,ssl_context=(config['cert'][0], config['cert'][1]))
             else:
+                logger.info("Trying to run on http://0.0.0.0:"+str(port)+"/")
                 app.run(host='0.0.0.0',port=port)
         except OSError:
             port+=1
