@@ -45,7 +45,7 @@
 >   В папке __autostart__ приложены примеры сервисов для автозапуска программы, в них требуется подкорректировать пути до __vkLongpollLogger.py__.
 
 *   __SysV init__ – vkCacheBot -> __/etc/init.d__
-*   __systemd__– vkCacheBot.service -> __/lib/systemd/system__
+*   __systemd__– vkCacheBot.service -> __/lib/systemd/system__ (~/.local/share/systemd/user/ для запуска от имени пользователя)
 *  __Windows__ – vkCacheBot.vbs -> __C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup__
 
 Обновление

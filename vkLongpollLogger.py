@@ -2,6 +2,7 @@ import logging
 import sys
 import os
 import json
+import logging.handlers
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 defaultConfig = {
@@ -45,7 +46,7 @@ except (FileNotFoundError, json.decoder.JSONDecodeError):
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',stream=sys.stdout, level=logging.WARNING)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-handler = logging.FileHandler(os.path.join(cwd, 'log.txt'))
+handler = logging.handlers.RotatingFileHandler(os.path.join(cwd, 'log.txt'), maxBytes=102400)
 handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 logger.addHandler(handler)
 logger.info("Запуск...")
@@ -88,8 +89,11 @@ def tryAgainIfFailed(func, delay=5, *args, **kwargs):
     while True:
         try:
             return func(*args, **kwargs)
+        except ConnectionResetError:
+            time.sleep(delay)
+            continue
         except BaseException:
-            logger.warning("Перезапуск " + func.__name__ + " через " + str(delay) + " секунд...")
+            logger.warning("Перезапуск " + str(func.__name__) + "(" + str(args) + str(kwargs) + ")" + " через " + str(delay) + " секунд...")
             time.sleep(delay)
             continue
 
@@ -322,9 +326,9 @@ def showMessagesWithDeletedAttachments():
     messages_attachments = []
     messages_fwd = []
     for i in [[j[0] for j in fetch_attachments[i:i + 100]] for i in range(0, len(fetch_attachments), 100)]:
-        messages_attachments.extend(vk.messages.getById(message_ids=",".join(i))['items'])
+        messages_attachments.extend(tryAgainIfFailed(vk.messages.getById,delay=1,message_ids=",".join(i))['items'])
     for i in [[j[0] for j in fetch_fwd[i:i + 100]] for i in range(0, len(fetch_fwd), 100)]:
-        messages_fwd.extend(vk.messages.getById(message_ids=",".join(i))['items'])
+        messages_fwd.extend(tryAgainIfFailed(vk.messages.getById,delay=1,message_ids=",".join(i))['items'])
     c=0
     for i in range(len(fetch_attachments)):
         if compareAttachments(messages_attachments[i-c]['attachments'],fetch_attachments[i-c][1]):
@@ -741,6 +745,10 @@ if not config['disableMessagesLogging']:
     <head>
         <meta charset="utf-8">
         <style>
+            html{
+                font-size: 18px;
+                font-family: sans-serif;
+            }
             .mes{
                 word-break: break-all;
             }
