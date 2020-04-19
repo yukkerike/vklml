@@ -1,10 +1,10 @@
-from functools import wraps
-from flask import Flask, request, Response, send_from_directory
 import json
 import os
 import time
 import logging
 import logging.handlers
+from functools import wraps
+from flask import Flask, request, Response, send_from_directory
 
 cwd = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(cwd, 'config.json'), "r") as conf:
@@ -59,7 +59,7 @@ def requires_auth(f):
             if not auth or not check_auth(auth.username, auth.password):
                 return authenticate()
             if auth.username != firstUser:
-                logger.info("Запрос от " + auth.username)
+                logger.info("Запрос от %s", auth.username)
         return f(*args, **kwargs)
     return decorated
 
@@ -71,30 +71,49 @@ def add_header(response):
 @app.route("/")
 @requires_auth
 def index():
-    fileList = list(filter(lambda i: i.find('mes') != -1,os.listdir(os.path.join(cwd,"mesAct"))))
-    sortList=[i[:9]+i[13:15]+i[11:13]+i[9:11]+i[15:] for i in fileList]
-    sortList = sorted(zip(sortList, fileList), key=lambda i: i[0])
+    fileList = list(
+        filter(
+            lambda i: i.find('mes') != -1,
+            os.listdir(os.path.join(
+                    cwd,
+                    "mesAct"
+            ))
+        )
+    )
+    sortList = [f"{i[:9]}{i[13:15]}{i[11:13]}{i[9:11]}{i[15:]}" for i in fileList]
+    sortList = sorted(
+        zip(sortList, fileList),
+        key=lambda i: i[0]
+    )
     fileList = [i[1] for i in sortList]
-    lis=""
+    lis = ""
     for i in fileList:
-        lis+=row.format('./'+i,time.strftime("%d %B %Y",time.strptime(i[9:15],"%d%m%y")))
+        lis += row.format(f"./{i}", time.strftime(
+            "%d %B %Y",
+            time.strptime(i[9:15], "%d%m%y")
+        ))
     return html.format(lis)
 
 @app.route('/<path:path>')
 @requires_auth
 def send(path):
-    return send_from_directory('mesAct', path)
+    return send_from_directory("mesAct", path)
 
 @app.route('/static/')
 def staticfileslist():
-    if os.path.exists(os.path.join(cwd,'mesAct', 'static')):
-        return html.format('\n'.join(map(lambda i: row.format('./'+i,i),os.listdir(os.path.join(cwd,'mesAct','static')))))
-    else:
-        return 'Static folder not found'
+    if os.path.exists(os.path.join(cwd, "mesAct", 'static')):
+        return html.format('\n'.join(map(
+            lambda i: row.format(f"./{i}", i),
+            os.listdir(os.path.join(
+                cwd,
+                "mesAct",
+                "static"))))
+        )
+    return 'Static folder not found'
 
 @app.route('/static/<url>')
 def staticpush(url):
-    return send_from_directory(os.path.join('mesAct', 'static'), url)
+    return send_from_directory(os.path.join("mesAct", 'static'), url)
 
 @app.route("/vkGetVideoLink.html")
 def video():
@@ -105,8 +124,7 @@ def video():
             'Could not verify your access level for that URL.\n'
             'You have to login with proper config', 401,
             {'WWW-Authenticate': 'Basic realm="Login Required"'})
-        else:
-            return """<!DOCTYPE html>
+        return """<!DOCTYPE html>
     <html>
         <head>
             <meta charset="utf-8">
@@ -140,8 +158,7 @@ def video():
             </script>
         </body>
     </html>""".format(config['ACCESS_TOKEN'] if auth.username == firstUser else "")
-    else:
-        return send_from_directory('mesAct', 'vkGetVideoLink.html')
+    return send_from_directory("mesAct", 'vkGetVideoLink.html')
 
 if __name__ == "__main__":
     app.run()
