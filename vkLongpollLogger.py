@@ -13,6 +13,28 @@ from vk_api.longpoll import VkLongPoll, VkEventType
 import requests.exceptions
 
 cwd = os.path.dirname(os.path.abspath(__file__))
+logging.basicConfig(
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
+    level=logging.WARNING
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.handlers.RotatingFileHandler(
+    os.path.join(cwd, 'log.txt'),
+    maxBytes=102400
+)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
+logger.info("Запуск...")
+
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logger.error("Непойманное исключение.", exc_info=(exc_type, exc_value, exc_traceback))
+sys.excepthook = handle_exception
+
 defaultConfig = {
     "ACCESS_TOKEN": "",
     "createIndex": False,
@@ -59,29 +81,17 @@ except (FileNotFoundError, json.decoder.JSONDecodeError):
         config = defaultConfig
         del defaultConfig
 
-logging.basicConfig(
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    stream=sys.stdout,
-    level=logging.WARNING
-)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.handlers.RotatingFileHandler(
-    os.path.join(cwd, 'log.txt'),
-    maxBytes=102400
-)
-handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-logger.addHandler(handler)
-logger.info("Запуск...")
-
 stop = False
 
 def run_flask_server():
     port = config['httpsPort'] if config['https'] else config['port']
+    import socket
+    ip = socket.gethostbyname(socket.gethostname())
+    del socket
     while True:
         try:
             if config['https']:
-                logger.info("Trying to run on https://0.0.0.0:%s/", port)
+                logger.info("Trying to run on https://%s:%s/", ip, port)
                 app.run(
                     host='0.0.0.0',
                     port=port,
@@ -91,7 +101,7 @@ def run_flask_server():
                     )
                 )
             else:
-                logger.info("Trying to run on http://0.0.0.0:%s/", port)
+                logger.info("Trying to run on http://%s:%s/", ip, port)
                 app.run(host='0.0.0.0', port=port)
         except OSError:
             port += 1
@@ -281,14 +291,6 @@ def interrupt_handler(signum, frame):
         pass
     logger.info("Завершение...")
     os._exit(0)
-
-def handle_exception(exc_type, exc_value, exc_traceback):
-    if issubclass(exc_type, KeyboardInterrupt):
-        sys.__excepthook__(exc_type, exc_value, exc_traceback)
-        return
-    logger.error("Непойманное исключение.", exc_info=(exc_type, exc_value, exc_traceback))
-
-sys.excepthook = handle_exception
 
 signal.signal(signal.SIGINT, interrupt_handler)
 signal.signal(signal.SIGTERM, interrupt_handler)
