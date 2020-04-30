@@ -1,12 +1,4 @@
-*
-!.gitignore
-!LICENSE
-!README.md
-!requirements.txt
-!vkLongpollLogger.py
-!updateIndex.py
-!flaskWebServer.py
-!autostart/
-!autostart/vkCacheBot*
-!customActions.py
-!config.json
+__pycache__/
+mesAct/
+messages.db
+log.txt

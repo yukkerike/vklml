@@ -23,7 +23,8 @@
 
     $ python3 vkLongpollLogger.py ACCESS_TOKEN
 
-Получить токен можно тут: http://oauth.vk.com/authorize?client_id=2685278&display=mobile&redirect_uri=https://oauth.vk.com/blank.html&scope=725086&response_type=token&v=5.101&revoke=1
+Получить токен можно тут: <https://oauth.vk.com/authorize?client_id=6146827&scope=69632&redirect_uri=https://oauth.vk.com/blank.html&display=page&response_type=token&revoke=1>
+>   Опционально, второй токен без права доступа к сообщениям, только для получения ссылок на видео: <https://oauth.vk.com/authorize?client_id=6146827&scope=0&redirect_uri=https://oauth.vk.com/blank.html&display=page&response_type=token&revoke=1>
 
 Советы по настройке
 ------------

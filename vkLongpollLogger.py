@@ -42,6 +42,7 @@ defaultConfig = {
     "customActions": False,
     "disableMessagesLogging": False,
     "placeTokenInGetVideo": True,
+    "tokenToPlaceInGetVideo": "",
     'enableFlaskWebServer': False,
     'useAuth': False,
     'users': {
@@ -114,7 +115,7 @@ if config['createIndex']:
     from updateIndex import indexUpdater
     indexUpdater()
 
-def tryAgainIfFailed(func, delay=5, maxRetries=5, *args, **kwargs):
+def tryAgainIfFailed(func, *args, delay=5, maxRetries=5, **kwargs):
     c = maxRetries
     while True:
         try:
@@ -123,14 +124,14 @@ def tryAgainIfFailed(func, delay=5, maxRetries=5, *args, **kwargs):
             if str(sys.exc_info()[1]).find("User authorization failed") != -1:
                 logger.warning("Токен недействителен.")
                 interrupt_handler(0, None)
-            raise(Warning)
+            raise Warning
         except requests.exceptions.RequestException:
             time.sleep(delay)
             continue
         except BaseException:
             if maxRetries == 0:
-                logger.warning("После %s попыток %s(%s%s) завершился с ошибкой.", c, func.__name__, args, kwargs)
-                raise(Warning)
+                logger.exception("После %s попыток %s(%s%s) завершился с ошибкой.", c, func.__name__, args, kwargs)
+                raise Warning
             logger.warning("Перезапуск %s(%s%s) через %s секунд...", func.__name__, args, kwargs, delay)
             time.sleep(delay)
             if maxRetries > 0:
@@ -200,7 +201,7 @@ if not config['disableMessagesLogging']:
                 if (videos.value != "") document.getElementById('submit').click()
             </script>
         </body>
-    </html>""".format(config['ACCESS_TOKEN'] if config['placeTokenInGetVideo'] else ""))
+    </html>""".format(config['tokenToPlaceInGetVideo'] if config['tokenToPlaceInGetVideo'] != "" else config['ACCESS_TOKEN'] if config['placeTokenInGetVideo'] else ""))
     f.close()
     if not os.path.exists(
         os.path.join(
@@ -369,6 +370,8 @@ def predefinedActions(event):
     except sqlite3.IntegrityError:
         logger.warning("Запущено несколько копий программы, завершение...")
         interrupt_handler(0, None)
+    except Warning:
+        pass
     except BaseException:
         logger.exception("Ошибка при сохранении сообщения. \n %s", vars(event))
 
@@ -397,6 +400,8 @@ def main():
             elif event.raw[0] == 2 and (event.raw[2] & 131072 or event.raw[2] & 128):
                 events.append(event)
                 flag.set()
+        except Warning:
+            pass
         except BaseException:
             logger.exception("Ошибка при добавлении события в очередь. \n %s", vars(event))
 
@@ -611,13 +616,16 @@ def getPeerName(id):
         cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (id,))
         fetch = cursor.fetchone()
         if fetch is None:
-            name = tryAgainIfFailed(
-                vk.messages.getChat,
-                delay=1,
-                chat_id=id-2000000000
-            )['title']
-            cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id, name,))
-            conn.commit()
+            try:
+                name = tryAgainIfFailed(
+                    vk.messages.getChat,
+                    delay=1,
+                    chat_id=id-2000000000
+                )['title']
+                cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id, name,))
+                conn.commit()
+            except Warning:
+                name = "Секретный чат, используйте токен другого приложения"
         else:
             name = fetch[1]
     elif id < 0:

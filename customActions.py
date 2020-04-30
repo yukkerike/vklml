@@ -22,7 +22,7 @@ handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)
 logger.addHandler(handler)
 logger.info("Запуск...")
 
-def tryAgainIfFailed(func, delay=5, maxRetries=5, *args, **kwargs):
+def tryAgainIfFailed(func, *args, delay=5, maxRetries=5, **kwargs):
     c = maxRetries
     while True:
         try:
@@ -33,7 +33,7 @@ def tryAgainIfFailed(func, delay=5, maxRetries=5, *args, **kwargs):
         except BaseException:
             if maxRetries == 0:
                 logger.warning("После %s попыток %s(%s%s) завершился с ошибкой.", c, func.__name__, args, kwargs)
-                break
+                raise Warning
             logger.warning("Перезапуск %s(%s%s) через %s секунд...", func.__name__, args, kwargs, delay)
             time.sleep(delay)
             if maxRetries > 0:
@@ -52,13 +52,16 @@ class customActions:
             self.cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (id,))
             fetch = self.cursor.fetchone()
             if fetch is None:
-                name = tryAgainIfFailed(
-                    self.vk.messages.getChat,
-                    delay=0.5,
-                    chat_id=id-2000000000
-                )["title"]
-                self.cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id, name,))
-                self.conn.commit()
+                try:
+                    name = tryAgainIfFailed(
+                        self.vk.messages.getChat,
+                        delay=0.5,
+                        chat_id=id-2000000000
+                    )["title"]
+                    self.cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id, name,))
+                    self.conn.commit()
+                except Warning:
+                    name = "Секретный чат, используйте токен другого приложения"
             else:
                 name = fetch[1]
         elif id < 0:

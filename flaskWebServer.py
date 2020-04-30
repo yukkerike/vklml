@@ -157,7 +157,7 @@ def video():
                 if (videos.value != "") document.getElementById('submit').click()
             </script>
         </body>
-    </html>""".format(config['ACCESS_TOKEN'] if auth.username == firstUser else "")
+    </html>""".format(config['tokenToPlaceInGetVideo'] if config['tokenToPlaceInGetVideo'] != "" else config['ACCESS_TOKEN'] if auth.username == firstUser else "")
     return send_from_directory("mesAct", 'vkGetVideoLink.html')
 
 if __name__ == "__main__":
