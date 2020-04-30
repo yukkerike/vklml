@@ -120,14 +120,17 @@ def tryAgainIfFailed(func, delay=5, maxRetries=5, *args, **kwargs):
         try:
             return func(*args, **kwargs)
         except vk_api.exceptions.ApiError:
-            interrupt_handler(0, None)
+            if str(sys.exc_info()[1]).find("User authorization failed") != -1:
+                logger.warning("Токен недействителен.")
+                interrupt_handler(0, None)
+            raise(Warning)
         except requests.exceptions.RequestException:
             time.sleep(delay)
             continue
         except BaseException:
             if maxRetries == 0:
                 logger.warning("После %s попыток %s(%s%s) завершился с ошибкой.", c, func.__name__, args, kwargs)
-                break
+                raise(Warning)
             logger.warning("Перезапуск %s(%s%s) через %s секунд...", func.__name__, args, kwargs, delay)
             time.sleep(delay)
             if maxRetries > 0:
