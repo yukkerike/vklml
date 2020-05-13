@@ -957,7 +957,11 @@ elif not config['disableMessagesLogging']:
 else:
     threading.Thread(target=eventWorker).start()
 
-tryAgainIfFailed(
-    main,
-    maxRetries=-1
-)
+
+try:
+    tryAgainIfFailed(
+        main,
+        maxRetries=-1
+    )
+except Warning:
+    pass
