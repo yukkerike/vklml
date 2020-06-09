@@ -5,7 +5,7 @@
 ------------
 > **[python 3.4](https://python.org/) или новее**
 
-    $ git clone https://github.com/ikozlovsky/vkLongpollMessagesActionsLogger.git
+    $ git clone https://github.com/yukkerike/vkLongpollMessagesActionsLogger.git
     $ cd vkLongpollMessagesActionsLogger
     $ pip3 install -r requirements.txt
 
