@@ -253,6 +253,24 @@ if not config['disableMessagesLogging']:
             timeout=15.0
         )
         cursor = conn.cursor()
+    if not os.path.exists(
+        os.path.join(
+            cwd,
+            "mesAct",
+            "bootstrap.css"
+        )
+    ):
+        f = open(
+            os.path.join(
+            cwd,
+            "mesAct",
+            "bootstrap.css"
+            ),
+            'w',
+            encoding='utf-8'
+        )
+        f.write(':root{--blue:#007bff;--indigo:#6610f2;--purple:#6f42c1;--pink:#e83e8c;--red:#dc3545;--orange:#fd7e14;--yellow:#ffc107;--green:#28a745;--teal:#20c997;--cyan:#17a2b8;--white:#fff;--gray:#6c757d;--gray-dark:#343a40;--primary:#007bff;--secondary:#6c757d;--success:#28a745;--info:#17a2b8;--warning:#ffc107;--danger:#dc3545;--light:#f8f9fa;--dark:#343a40;--breakpoint-xs:0;--breakpoint-sm:576px;--breakpoint-md:768px;--breakpoint-lg:992px;--breakpoint-xl:1200px;--font-family-sans-serif:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";--font-family-monospace:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}*,::after,::before{box-sizing:border-box}html{font-family:sans-serif;line-height:1.15;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";font-size:1rem;font-weight:400;line-height:1.5;color:#212529;text-align:left;background-color:#fff}dl,ol,ul{margin-top:0;margin-bottom:1rem}b,strong{font-weight:bolder}a{color:#007bff;text-decoration:none;background-color:transparent}img{vertical-align:middle;border-style:none}table{border-collapse:collapse}.table{width:100%;margin-bottom:1rem;color:#212529}.table td,.table th{padding:.75rem;vertical-align:top;border-top:1px solid #dee2e6}.table-sm td,.table-sm th{padding:.3rem}.table-bordered{border:1px solid #dee2e6}.table-bordered td,.table-bordered th{border:1px solid #dee2e6}.list-group{display:-ms-flexbox;display:flex;-ms-flex-direction:column;flex-direction:column;padding-left:0;margin-bottom:0;border-radius:.25rem}.list-group-item{position:relative;display:block;padding:.75rem 1.25rem;background-color:#fff;border:1px solid rgba(0,0,0,.125)}.list-group-item:first-child{border-top-left-radius:inherit;border-top-right-radius:inherit}.list-group-item:last-child{border-bottom-right-radius:inherit;border-bottom-left-radius:inherit}.list-group-item+.list-group-item{border-top-width:0}.stretched-link::after{position:absolute;top:0;right:0;bottom:0;left:0;z-index:1;pointer-events:auto;content:"";background-color:rgba(0,0,0,0)}.mes{word-break:break-all}img,a,audio{display:block}img{max-width:300px}')
+        f.close()
 
 if config['customActions']:
     from customActions import customActions
@@ -658,7 +676,7 @@ def getPeerName(id):
     return name
 
 def fwdParse(fwd):
-    html = """<table border="1" width="100%" frame="hsides" style="margin-left:5px;">
+    html = """<table class="table table-sm table-bordered">
                         """
     for i in fwd:
         user_name = getPeerName(i['from_id'])
@@ -751,7 +769,7 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
                 oldMessage = f"⚠️ {message}"
                 oldAttachments = attachments
                 oldFwd = fwd
-                date = f"{time.strftime('%H:%M:%S&nbsp;%d.%m', time.localtime(timestamp))}<br />{time.strftime('%H:%M:%S&nbsp;%d.%m', time.localtime())}"
+                date = f"<b>Доб:</b>&nbsp;{time.strftime('%H:%M:%S&nbsp;%d.%m', time.localtime(timestamp))}<br /><b>Изм:</b>&nbsp;{time.strftime('%H:%M:%S&nbsp;%d.%m', time.localtime())}"
             else:
                 raise TypeError
         else:
@@ -763,14 +781,11 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
                 oldFwd = json.loads(fetch[6])
             peer_name = getPeerName(fetch[0])
             user_name = getPeerName(fetch[1])
-            date = f"{time.strftime('%H:%M:%S&nbsp;%d.%m', time.localtime(fetch[5]))}<br />{time.strftime('%H:%M:%S&nbsp;%d.%m', time.localtime())}"
+            date = f"<b>Доб:</b>&nbsp;{time.strftime('%H:%M:%S&nbsp;%d.%m', time.localtime(fetch[5]))}<br /><b>Изм:</b>&nbsp;{time.strftime('%H:%M:%S&nbsp;%d.%m', time.localtime())}"
             peer_id = fetch[0]
             user_id = fetch[1]
         del fetch
-        row = """            <tr>
-                <td>
-                    {}
-                </td>
+        row = """            <tr><!-- {} -->
                 <td>{}
                 </td>
                 <td>{}
@@ -921,27 +936,14 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
 if not config['disableMessagesLogging']:
     tableWatcher = threading.Thread(target=bgWatcher)
     tableWatcher.start()
-    template = """<html>
+    template = """<!DOCTYPE html>
+<html>
     <head>
         <meta charset="utf-8">
-        <style>
-            html{
-                font-size: 18px;
-                font-family: sans-serif;
-            }
-            .mes{
-                word-break: break-all;
-            }
-            img, a, audio{
-                display: block;
-            }
-            img{
-                max-width: 300px;
-            }
-        </style>
+        <link rel="stylesheet" href="./bootstrap.css">
     </head>
     <body>
-        <table cellspacing="0" border="1" width="100%" frame="hsides" white-space="pre-wrap">
+        <table class="table table-sm">
         </table>
     </body>
 </html>"""

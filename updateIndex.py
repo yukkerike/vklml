@@ -7,15 +7,17 @@ def generateIndex(cwd, date):
     messageList = ""
     for i in range(1, 32):
         messageList += """
-        <li><a href="./messages_"""+str(i).center(2, "0")+"""{0}.html">messages_"""+str(i).center(2, "0")+"""{0}.html</a></li>"""
+        <li class="list-group-item"><a href="./messages_"""+str(i).center(2, "0")+"""{0}.html" class="stretched-link">messages_"""+str(i).center(2, "0")+"""{0}.html</a></li>"""
     f.write(("""<!--{0}-->
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <link rel="stylesheet" href="./bootstrap.css">
 </head>
 <body>
-    <ul>"""+messageList+"""
+    <ul class="list-group">"""+messageList+"""
     </ul>
     <script>
         list = document.getElementsByTagName("li")
