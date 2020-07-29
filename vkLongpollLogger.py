@@ -326,7 +326,10 @@ def eventWorker_predefinedDisabled():
         while stop:
             time.sleep(2)
         stop = True
-        cust.act(event)
+        try:
+            cust.act(event)
+        except BaseException:
+            logger.exception("Ошибка в customActions. \n %s", vars(event))
         stop = False
         if len(events) == 0:
             flag.clear()
@@ -355,7 +358,10 @@ def eventWorker():
         while stop:
             time.sleep(2)
         stop = True
-        cust.act(event)
+        try:
+            cust.act(event)
+        except BaseException:
+            logger.exception("Ошибка в customActions. \n %s", vars(event))
         predefinedActions(event)
         stop = False
         if len(events) == 0:
@@ -756,9 +762,9 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
         peer_name = user_name = oldMessage = oldAttachments = date = oldFwd = None
         cursor.execute("""SELECT * FROM messages WHERE message_id = ?""", (message_id,))
         fetch = cursor.fetchone()
-        if not attachments is None:
+        if attachments is not None:
             attachments = parseUrls(json.loads(attachments))
-        if not fwd is None:
+        if fwd is not None:
             fwd = json.loads(fwd)
         if fetch is None:
             if isEdited:
@@ -773,11 +779,11 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
             else:
                 raise TypeError
         else:
-            if not fetch[3] is None:
+            if fetch[3] is not None:
                 oldMessage = str(fetch[3])
-            if not fetch[4] is None:
+            if fetch[4] is not None:
                 oldAttachments = parseUrls(json.loads(fetch[4]))
-            if not fetch[6] is None:
+            if fetch[6] is not None:
                 oldFwd = json.loads(fetch[6])
             peer_name = getPeerName(fetch[0])
             user_name = getPeerName(fetch[1])
@@ -848,19 +854,19 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
             else:
                 oldMessage = messageBlock.format(xssFilter(oldMessage))
                 message = ""
-            if not oldAttachments is None:
+            if oldAttachments is not None:
                 oldAttachments = attachmentsBlock.format(attachmentsParse(oldAttachments))
             else:
                 oldAttachments = ""
-            if not oldFwd is None:
+            if oldFwd is not None:
                 oldFwd = fwdBlock.format(fwdParse(oldFwd))
             else:
                 oldFwd = ""
-            if not attachments is None:
+            if attachments is not None:
                 attachments = attachmentsBlock.format(attachmentsParse(attachments))
             else:
                 attachments = ""
-            if not fwd is None:
+            if fwd is not None:
                 fwd = fwdBlock.format(fwdParse(fwd))
             else:
                 fwd = ""
@@ -871,15 +877,15 @@ def activityReport(message_id, peer_id=None, user_id=None, timestamp=None, isEdi
                     <b>Новое</b><br />{}
                 </td>""".format(oldMessage+oldAttachments+oldFwd, message+attachments+fwd)
         else:
-            if not oldMessage is None:
+            if oldMessage is not None:
                 oldMessage = messageBlock.format(xssFilter(oldMessage))
             else:
                 oldMessage = ""
-            if not oldAttachments is None:
+            if oldAttachments is not None:
                 oldAttachments = attachmentsBlock.format(attachmentsParse(oldAttachments))
             else:
                 oldAttachments = ""
-            if not oldFwd is None:
+            if oldFwd is not None:
                 oldFwd = fwdBlock.format(fwdParse(oldFwd))
             else:
                 oldFwd = ""
@@ -954,7 +960,7 @@ flag = threading.Event()
 
 if config['customActions'] and config['disableMessagesLogging']:
     threading.Thread(target=eventWorker_predefinedDisabled).start()
-elif not config['disableMessagesLogging']:
+elif not config['disableMessagesLogging'] and not config['customActions']:
     threading.Thread(target=eventWorker_customDisabled).start()
 else:
     threading.Thread(target=eventWorker).start()
