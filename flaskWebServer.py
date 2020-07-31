@@ -116,7 +116,18 @@ def index():
         t_midnight = t_delta
         t_delta = str(int(time.mktime(tuple(t_delta)) - time.time()))
         r.headers['Cache-Control'] = 'public, max-age=' + t_delta
-        r.headers['Expires'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT", tuple(t_midnight))
+        try:
+            exp = time.strftime("%a, %d %b %Y %H:%M:%S GMT", tuple(t_midnight))
+        except ValueError:
+            t_midnight[2] = 1
+            t_midnight[1]+=1
+            try:
+                exp = time.strftime("%a, %d %b %Y %H:%M:%S GMT", tuple(t_midnight))
+            except ValueError:
+                t_midnight[1] = 1
+                t_midnight[0]+=1
+                exp = time.strftime("%a, %d %b %Y %H:%M:%S GMT", tuple(t_midnight))
+        r.headers['Expires'] = exp
     return r
 
 @app.route('/<path:path>')
