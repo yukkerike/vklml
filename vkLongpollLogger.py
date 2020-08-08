@@ -82,7 +82,7 @@ except (FileNotFoundError, json.decoder.JSONDecodeError):
         config = defaultConfig
         del defaultConfig
 
-stop = False
+stop_mutex = threading.Lock()
 
 def run_flask_server():
     port = config['httpsPort'] if config['https'] else config['port']
@@ -277,30 +277,26 @@ if config['customActions']:
     cust = customActions(vk, conn, cursor)
 
 def bgWatcher():
-    global stop
     while True:
         maxCacheAge = config['maxCacheAge']
-        while stop:
-            time.sleep(2)
-        stop = True
-        logger.info("Обслуживание БД...")
-        try:
-            showMessagesWithDeletedAttachments()
-        except BaseException:
-            logger.exception("Ошибка при поиске удаленных фото")
-        try:
-            if maxCacheAge != -1:
-                cursor.execute(
-                    """DELETE FROM messages WHERE timestamp < ?""",
-                    (time.time() - maxCacheAge,)
-                )
-                conn.commit()
-                cursor.execute("VACUUM")
-            else:
-                maxCacheAge = 86400
-        except BaseException:
-            logger.exception("Ошибка при очистке базы данных")
-        stop = False
+        with stop_mutex:
+            logger.info("Обслуживание БД...")
+            try:
+                showMessagesWithDeletedAttachments()
+            except BaseException:
+                logger.exception("Ошибка при поиске удаленных фото")
+            try:
+                if maxCacheAge != -1:
+                    cursor.execute(
+                        """DELETE FROM messages WHERE timestamp < ?""",
+                        (time.time() - maxCacheAge,)
+                    )
+                    conn.commit()
+                    cursor.execute("VACUUM")
+                else:
+                    maxCacheAge = 86400
+            except BaseException:
+                logger.exception("Ошибка при очистке базы данных")
         logger.info("Обслуживание БД завершено.")
         time.sleep(maxCacheAge)
 
@@ -319,51 +315,39 @@ signal.signal(signal.SIGTERM, interrupt_handler)
 
 def eventWorker_predefinedDisabled():
     global events
-    global stop
     while True:
         flag.wait()
         event = events.pop(0)
-        while stop:
-            time.sleep(2)
-        stop = True
-        try:
-            cust.act(event)
-        except BaseException:
-            logger.exception("Ошибка в customActions. \n %s", vars(event))
-        stop = False
+        with stop_mutex:
+            try:
+                cust.act(event)
+            except BaseException:
+                logger.exception("Ошибка в customActions. \n %s", vars(event))
         if len(events) == 0:
             flag.clear()
 
 def eventWorker_customDisabled():
     global events
-    global stop
     while True:
         flag.wait()
         event = events.pop(0)
-        while stop:
-            time.sleep(2)
-        stop = True
-        predefinedActions(event)
-        stop = False
+        with stop_mutex:
+            predefinedActions(event)
         if len(events) == 0:
             flag.clear()
             conn.commit()
 
 def eventWorker():
     global events
-    global stop
     while True:
         flag.wait()
         event = events.pop(0)
-        while stop:
-            time.sleep(2)
-        stop = True
-        try:
-            cust.act(event)
-        except BaseException:
-            logger.exception("Ошибка в customActions. \n %s", vars(event))
-        predefinedActions(event)
-        stop = False
+        with stop_mutex:
+            try:
+                cust.act(event)
+            except BaseException:
+                logger.exception("Ошибка в customActions. \n %s", vars(event))
+            predefinedActions(event)
         if len(events) == 0:
             flag.clear()
             conn.commit()
