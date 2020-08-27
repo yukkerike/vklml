@@ -3,7 +3,7 @@
 ACCESS_TOKEN=
 
 PYTHON_PATH=/usr/bin/python3
-SCRIPT_PATH=/media/data/vkCacheBot/vkLongpollLogger.py
+SCRIPT_PATH=/media/data/vkCacheBot/main.py
 flag=/tmp/stopFlag
 
 function runner {
