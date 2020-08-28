@@ -39,6 +39,7 @@ defaultConfig = {
     "ACCESS_TOKEN": "",
     "createIndex": False,
     "maxCacheAge": 86400,
+    "preloadMessages": False,
     "customActions": False,
     "disableMessagesLogging": False,
     "placeTokenInGetVideo": True,
@@ -70,7 +71,7 @@ try:
         if i in defaultConfig:
             defaultConfig[i] = config[i]
     grab_token_from_args()
-    if len(set(config) - set(defaultConfig)) != 0:
+    if len(set(config)) - len(set(defaultConfig)) != 0:
         with open(os.path.join(cwd, "config.json"), 'w') as conf:
             json.dump(defaultConfig, conf, indent=4)
     config = defaultConfig
@@ -566,12 +567,10 @@ def getAttachments(message_id):
         fwd_messages = json.dumps([mes['reply_message']], ensure_ascii=False,)
     elif mes['fwd_messages'] != []:
         fwd_messages = json.dumps(mes['fwd_messages'], ensure_ascii=False,)
-    attachments = mes['attachments']
-    del mes
-    if attachments == []:
+    if mes['attachments'] == []:
         attachments = None
     else:
-        attachments = json.dumps(attachments, ensure_ascii=False,)
+        attachments = json.dumps(mes['attachments'], ensure_ascii=False,)
     return hasUpdateTime, attachments, fwd_messages
 
 def parseUrls(attachments):
@@ -942,6 +941,67 @@ sizes = ('w', 'z', 'y', 'r', 'q', 'p', 'o', 'x', 'm', 's')
 events = []
 flag = threading.Event()
 
+def preloadMessages():
+    logger.info("Предзагрузка сообщений...")
+    offset = 0
+    peer_ids = []
+    messages = []
+    shouldContinue = True
+    try:
+        while shouldContinue:
+            shouldContinue = False
+            dialogs = tryAgainIfFailed(vk.messages.getConversations, offset=offset, count=20)
+            for i in range(0,len(dialogs['items'])):
+                if dialogs['items'][i]['last_message']['date'] >= time.time() - config['maxCacheAge']:
+                    peer_ids.append(dialogs['items'][i]['conversation']['peer']['id'])
+                    if i == len(dialogs['items']) - 1:
+                        shouldContinue = True
+                        offset+=20
+        for i in peer_ids:
+            offset = 0
+            if i > 2000000000:
+                count = 200
+            else:
+                count = 50
+            shouldContinue = True
+            while shouldContinue:
+                shouldContinue = False
+                mes = vk.messages.getHistory(offset=offset, count=count, peer_id=i)['items']
+                if mes[-1]['date']>= time.time() - config['maxCacheAge']:
+                    shouldContinue = True
+                    offset+=count
+                for j in mes:
+                    if j['date'] >= time.time() - config['maxCacheAge']:
+                        messages.append(j)
+        for i in messages:
+            message_id = i['id']
+            with stop_mutex:
+                cursor.execute("""SELECT message_id FROM messages WHERE message_id = ?""", (message_id,))
+                if cursor.fetchone() is not None:
+                    continue
+            peer_id = i['peer_id']
+            user_id = i['from_id']
+            message = i['text']
+            timestamp = i['date']
+            fwd_messages = None
+            if 'reply_message' in i:
+                fwd_messages = json.dumps([i['reply_message']], ensure_ascii=False,)
+            elif i['fwd_messages'] != []:
+                fwd_messages = json.dumps(i['fwd_messages'], ensure_ascii=False,)
+            if i['attachments'] == []:
+                attachments = None
+            else:
+                attachments = json.dumps(i['attachments'], ensure_ascii=False,)
+            with stop_mutex:
+                cursor.execute(
+                        """INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",
+                        (peer_id, user_id, message_id, message, attachments, timestamp, fwd_messages,)
+                )
+                conn.commit()
+    except BaseException:
+        logger.exception("Ошибка во время предзагрузки сообщений")
+    logger.info("Предзагрузка сообщений завершена.")
+
 if config['customActions'] and config['disableMessagesLogging']:
     threading.Thread(target=eventWorker_predefinedDisabled).start()
 elif not config['disableMessagesLogging'] and not config['customActions']:
@@ -949,6 +1009,8 @@ elif not config['disableMessagesLogging'] and not config['customActions']:
 else:
     threading.Thread(target=eventWorker).start()
 
+if config['preloadMessages']:
+    threading.Thread(target=preloadMessages).start()
 
 try:
     tryAgainIfFailed(

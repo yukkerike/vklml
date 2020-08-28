@@ -2,6 +2,7 @@
     "ACCESS_TOKEN": "",
     "createIndex": false,
     "maxCacheAge": 86400,
+    "preloadMessages": false,
     "customActions": false,
     "disableMessagesLogging": false,
     "placeTokenInGetVideo": true,
@@ -15,7 +16,7 @@
     "https": false,
     "httpsPort": 8443,
     "cert": [
-        "cert.pem",
-        "key.pem"
+        "/home/ra1n/vkCacheBot/cert.pem",
+        "/home/ra1n/vkCacheBot/key.pem"
     ]
 }
