@@ -2,9 +2,8 @@
 
 Перехват удаленных/измененных сообщений вконтакте
 
-Начало
+## Начало
 
-------------
 > **[python 3.4](https://python.org/) или новее**
 
     git clone https://github.com/yukkerike/vklml.git
@@ -15,9 +14,8 @@
 >
 > Зависимости лучше устанавливать от имени администратора. В случае с windows стоит писать не __pip3__, а __py -m pip__, и не __python3__, а __py__.
 
-Запуск
+## Запуск
 
-------------
 > Укажите токен в __config.json__ и запустите скрипт:
 
     python3 main.py
@@ -29,9 +27,8 @@
 Получить токен можно тут: <https://oauth.vk.com/authorize?client_id=6146827&scope=69632&redirect_uri=https://oauth.vk.com/blank.html&display=page&response_type=token&revoke=1>
 > Опционально, второй токен без права доступа к сообщениям, только для получения ссылок на видео: <https://oauth.vk.com/authorize?client_id=6146827&scope=0&redirect_uri=https://oauth.vk.com/blank.html&display=page&response_type=token&revoke=1>
 
-Советы по настройке
+## Советы по настройке
 
-------------
 > Если вы хотите включить предзагрузку сообщений, полученных до запуска программы, измените значение ключа __preloadMessages__ на __true__.
 >
 > Если вы хотите, чтобы к файлам отчёта генерировался index.html с ссылками на отчёты по дням за текущий месяц (__излишне в случае использования встроенного веб-сервера__), добавьте правило для запуска __updateIndex.py__ раз в месяц в crontab, либо измените значение __false__ на __true__ ключа __createIndex__ в __config.json__.
@@ -55,7 +52,6 @@
 * __systemd__– vkCacheBot.service -> __/lib/systemd/system__ (~/.local/share/systemd/user/ для запуска от имени пользователя)
 * __Windows__ – vkCacheBot.vbs -> __C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup__
 
-Обновление
+## Обновление
 
-------------
 > Сверьте, не изменился ли список зависимостей в __requirements.txt__. Если нужно, установите их. Замените файлы новыми версиями. Допустимо сохранить свой __config.json__, он будет автоматически обновлён, если в новой версии список поддерживаемых настроек отличается.
