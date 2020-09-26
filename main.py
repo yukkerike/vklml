@@ -216,6 +216,7 @@ if not config['disableMessagesLogging']:
                 "messages.db"
             ),
             check_same_thread=False,
+            isolation_level=None,
             timeout=15.0
         )
         cursor = conn.cursor()

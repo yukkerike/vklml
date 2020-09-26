@@ -84,7 +84,7 @@ def push_bootstrap():
 def index():
     fileList = list(
         filter(
-            lambda i: i.find('mes') != -1,
+            lambda i: i[0:3] == 'mes',
             os.listdir(os.path.join(
                     cwd,
                     "mesAct"
