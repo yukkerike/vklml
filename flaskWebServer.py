@@ -94,7 +94,8 @@ def index():
     sortList = [f"{i[:9]}{i[13:15]}{i[11:13]}{i[9:11]}{i[15:]}" for i in fileList]
     sortList = sorted(
         zip(sortList, fileList),
-        key=lambda i: i[0]
+        key=lambda i: i[0],
+        reverse=True
     )
     fileList = [i[1] for i in sortList]
     lis = ""
