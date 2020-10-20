@@ -34,17 +34,16 @@ logger.addHandler(handler)
 app = Flask(__name__, static_folder=os.path.join(cwd, 'mesAct', 'static'))
 
 def check_auth(username, password):
-    """This function is called to check if a username /
-    password combination is valid.
-    """
     return username in config['users'] and config['users'][username] == password
 
 def authenticate():
-    """Sends a 401 response that enables basic auth"""
-    return Response(
-    'Could not verify your access level for that URL.\n'
-    'You have to login with proper config', 401,
+    request_xhr_key = request.headers.get('X-Requested-With')
+    if not (request_xhr_key and request_xhr_key == 'XMLHttpRequest'):
+        return Response(
+    'Необходимо залогиниться', 401,
     {'WWW-Authenticate': 'Basic realm="Login Required"'})
+    else:
+        return ""
 
 def requires_auth(f):
     @wraps(f)
@@ -143,7 +142,7 @@ def send(path):
         r.headers['Expires'] = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.localtime(time.time() + 604800))
     return r
 
-@app.route('/static/')
+@app.route('/static', strict_slashes=False)
 @no_cache
 def staticfileslist():
     if os.path.exists(os.path.join(cwd, "mesAct", 'static')):
@@ -162,8 +161,7 @@ def video():
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
             return Response(
-            'Could not verify your access level for that URL.\n'
-            'You have to login with proper config', 401,
+            'Необходимо залогиниться', 401,
             {'WWW-Authenticate': 'Basic realm="Login Required"'})
         return """<!DOCTYPE html>
     <html>
