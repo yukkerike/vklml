@@ -537,7 +537,7 @@ def attachmentsParse(urls):
                             </a>
                         """.format(i, i[23:-11].replace('%20', ' '))
         elif i.find('@') != -1:
-            i = i.split('@')
+            i = i.rsplit('@', 1)
             html += """    <a href="{}" target="_blank">
                                 {}
                             </a>
@@ -604,6 +604,8 @@ def parseUrls(attachments):
             urls.append(f"Комментарий: {i['wall_reply']['text'][:25]}@https://vk.com/wall{i['wall_reply']['owner_id']}_{i['wall_reply']['post_id']}?reply={i['wall_reply']['id']}")
         elif i['type'] == 'audio':
             urls.append(f"https://vk.com/audio?q={i['audio']['artist'].replace(' ', '%20')}%20-%20{i['audio']['title'].replace(' ', '%20')}&tab=global")
+        elif i['type'] == 'audio_playlist':
+            urls.append(f"Плейлист: {i['audio_playlist']['title']}@https://vk.com/music?z=audio_playlist{i['audio_playlist']['owner_id']}_{i['audio_playlist']['id']}/{i['audio_playlist']['access_key']}")
         elif i['type'] == 'market':
             urls.append(f"https://vk.com/market?w=product{i['market']['owner_id']}_{i['market']['id']}")
         elif i['type'] == 'poll':
