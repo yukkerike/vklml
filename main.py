@@ -29,7 +29,9 @@ logger.addHandler(handler)
 logger.info("Запуск...")
 
 def handle_exception(exc_type, exc_value, exc_traceback):
-    if issubclass(exc_type, KeyboardInterrupt):
+    if issubclass(exc_type, requests.exceptions.RequestException):
+        return
+    elif issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_traceback)
         return
     logger.error("Непойманное исключение.", exc_info=(exc_type, exc_value, exc_traceback))
@@ -61,10 +63,16 @@ defaultConfig = {
 def grab_token_from_args():
     if len(sys.argv) > 1:
         defaultConfig['ACCESS_TOKEN'] = sys.argv[1]
-    if defaultConfig['ACCESS_TOKEN'] == "":
+    elif defaultConfig['ACCESS_TOKEN'] == "":
         raise Exception("Не задан ACCESS_TOKEN")
 
-try:
+if not os.path.exists(os.path.join(cwd, "config.json")):
+    with open(os.path.join(cwd, "config.json"), 'w') as conf:
+        grab_token_from_args()
+        json.dump(defaultConfig, conf, indent=4)
+        config = defaultConfig
+        del defaultConfig
+else:
     with open(os.path.join(cwd, "config.json"), 'r') as conf:
         config = json.load(conf)
     for i in config:
@@ -76,12 +84,6 @@ try:
             json.dump(defaultConfig, conf, indent=4)
     config = defaultConfig
     del defaultConfig
-except (FileNotFoundError, json.decoder.JSONDecodeError):
-    with open(os.path.join(cwd, "config.json"), 'w') as conf:
-        grab_token_from_args()
-        json.dump(defaultConfig, conf, indent=4)
-        config = defaultConfig
-        del defaultConfig
 
 stop_mutex = threading.Lock()
 
@@ -116,8 +118,9 @@ if config['createIndex']:
     from updateIndex import indexUpdater
     indexUpdater()
 
-def tryAgainIfFailed(func, *args, delay=5, maxRetries=5, **kwargs):
+def tryAgainIfFailed(func, *args, maxRetries=5, **kwargs):
     c = maxRetries
+    delay = 1
     while True:
         try:
             return func(*args, **kwargs)
@@ -127,6 +130,8 @@ def tryAgainIfFailed(func, *args, delay=5, maxRetries=5, **kwargs):
                 interrupt_handler(0, None)
             raise Warning
         except requests.exceptions.RequestException:
+            if delay < 32:
+                delay*=2
             time.sleep(delay)
             continue
         except BaseException:
@@ -134,18 +139,17 @@ def tryAgainIfFailed(func, *args, delay=5, maxRetries=5, **kwargs):
                 logger.exception("После %s попыток %s(%s%s) завершился с ошибкой.", c, func.__name__, args, kwargs)
                 raise Warning
             logger.warning("Перезапуск %s(%s%s) через %s секунд...", func.__name__, args, kwargs, delay)
+            if delay < 32:
+                delay*=2
             time.sleep(delay)
             if maxRetries > 0:
                 maxRetries -= 1
             continue
 
 vk_session = vk_api.VkApi(token=config['ACCESS_TOKEN'])
-longpoll = VkLongPoll(vk_session, wait=10, mode=2)
+longpoll = VkLongPoll(vk_session, wait=60, mode=2)
 vk = vk_session.get_api()
-account_id = tryAgainIfFailed(
-    vk.users.get,
-    delay=1
-)[0]['id']
+account_id = tryAgainIfFailed(vk.users.get)[0]['id']
 
 if not config['disableMessagesLogging']:
     if not os.path.exists(
@@ -239,7 +243,6 @@ if not config['disableMessagesLogging']:
 )""")
         account_name = tryAgainIfFailed(
             vk.users.get,
-            delay=1,
             user_id=account_id
         )[0]
         account_name = f"{account_name['first_name']} {account_name['last_name']}"
@@ -271,7 +274,7 @@ if not config['disableMessagesLogging']:
             'w',
             encoding='utf-8'
         )
-        f.write(':root{--blue:#007bff;--indigo:#6610f2;--purple:#6f42c1;--pink:#e83e8c;--red:#dc3545;--orange:#fd7e14;--yellow:#ffc107;--green:#28a745;--teal:#20c997;--cyan:#17a2b8;--white:#fff;--gray:#6c757d;--gray-dark:#343a40;--primary:#007bff;--secondary:#6c757d;--success:#28a745;--info:#17a2b8;--warning:#ffc107;--danger:#dc3545;--light:#f8f9fa;--dark:#343a40;--breakpoint-xs:0;--breakpoint-sm:576px;--breakpoint-md:768px;--breakpoint-lg:992px;--breakpoint-xl:1200px;--font-family-sans-serif:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";--font-family-monospace:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}*,::after,::before{box-sizing:border-box}html{font-family:sans-serif;line-height:1.15;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";font-size:1rem;font-weight:400;line-height:1.5;color:#212529;text-align:left;background-color:#fff}dl,ol,ul{margin-top:0;margin-bottom:1rem}b,strong{font-weight:bolder}a{color:#007bff;text-decoration:none;background-color:transparent}img{vertical-align:middle;border-style:none}table{border-collapse:collapse}.table{width:100%;margin-bottom:1rem;color:#212529}.table td,.table th{padding:.75rem;vertical-align:top;border-top:1px solid #dee2e6}.table-sm td,.table-sm th{padding:.3rem}.table-bordered{border:1px solid #dee2e6}.table-bordered td,.table-bordered th{border:1px solid #dee2e6}.list-group{display:-ms-flexbox;display:flex;-ms-flex-direction:column;flex-direction:column;padding-left:0;margin-bottom:0;border-radius:.25rem}.list-group-item{position:relative;display:block;padding:.75rem 1.25rem;background-color:#fff;border:1px solid rgba(0,0,0,.125)}.list-group-item:first-child{border-top-left-radius:inherit;border-top-right-radius:inherit}.list-group-item:last-child{border-bottom-right-radius:inherit;border-bottom-left-radius:inherit}.list-group-item+.list-group-item{border-top-width:0}.stretched-link::after{position:absolute;top:0;right:0;bottom:0;left:0;z-index:1;pointer-events:auto;content:"";background-color:rgba(0,0,0,0)}.mes{word-break:break-all}img,a,audio{display:block}img{max-width:300px}')
+        f.write(':root{--blue:#007bff;--indigo:#6610f2;--purple:#6f42c1;--pink:#e83e8c;--red:#dc3545;--orange:#fd7e14;--yellow:#ffc107;--green:#28a745;--teal:#20c997;--cyan:#17a2b8;--white:#fff;--gray:#6c757d;--gray-dark:#343a40;--primary:#007bff;--secondary:#6c757d;--success:#28a745;--info:#17a2b8;--warning:#ffc107;--danger:#dc3545;--light:#f8f9fa;--dark:#343a40;--breakpoint-xs:0;--breakpoint-sm:576px;--breakpoint-md:768px;--breakpoint-lg:992px;--breakpoint-xl:1200px;--font-family-sans-serif:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";--font-family-monospace:SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}*,::after,::before{box-sizing:border-box}html{font-family:sans-serif;line-height:1.15;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";font-size:1rem;font-weight:400;line-height:1.5;color:#212529;text-align:left;background-color:#fff}dl,ol,ul{margin-top:0;margin-bottom:1rem}b,strong{font-weight:bolder}a{color:#007bff;text-decoration:none;background-color:transparent}img{vertical-align:middle;border-style:none}table{border-collapse:collapse}.table{width:100%;margin-bottom:1rem;color:#212529}.table td,.table th{padding:.75rem;vertical-align:top;border-top:1px solid #dee2e6}.table-sm td,.table-sm th{padding:.3rem}.table-bordered{border:1px solid #dee2e6}.table-bordered td,.table-bordered th{border:1px solid #dee2e6}.list-group{display:-ms-flexbox;display:flex;-ms-flex-direction:column;flex-direction:column;padding-left:0;margin-bottom:0;border-radius:.25rem}.list-group-item{position:relative;display:block;padding:.75rem 1.25rem;background-color:#fff;border:1px solid rgba(0,0,0,.125)}.list-group-item:first-child{border-top-left-radius:inherit;border-top-right-radius:inherit}.list-group-item:last-child{border-bottom-right-radius:inherit;border-bottom-left-radius:inherit}.list-group-item+.list-group-item{border-top-width:0}.stretched-link::after{position:absolute;top:0;right:0;bottom:0;left:0;z-index:1;pointer-events:auto;content:"";background-color:rgba(0,0,0,0)}.mes{word-break:break-all}img,a,audio{display:block}img{max-width:100%}')
         f.close()
 
 if config['customActions']:
@@ -361,6 +364,7 @@ def predefinedActions(event):
                 """INSERT INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",
                 (event.peer_id, event.user_id, event.message_id, event.message, event.message_data[1], event.timestamp, event.message_data[2],)
             )
+            conn.commit()
         elif event.type == VkEventType.MESSAGE_EDIT:
             if event.message_data[0]:
                 activityReport(event.message_id, event.peer_id, event.user_id, event.timestamp, True, event.message_data[1], event.message_data[2], event.text)
@@ -368,6 +372,7 @@ def predefinedActions(event):
                 """INSERT or REPLACE INTO messages(peer_id,user_id,message_id,message,attachments,timestamp,fwd_messages) VALUES (?,?,?,?,?,?,?)""",
                 (event.peer_id, event.user_id, event.message_id, event.message, event.message_data[1], event.timestamp, event.message_data[2],)
             )
+            conn.commit()
         elif event.type == VkEventType.MESSAGE_FLAGS_SET:
             try:
                 activityReport(event.message_id)
@@ -375,6 +380,7 @@ def predefinedActions(event):
                     """DELETE FROM messages WHERE message_id = ?""",
                     (event.message_id,)
                 )
+                conn.commit()
             except TypeError:
                 logger.info("Удаление невозможно, сообщение отсутствует в БД.")
     except sqlite3.IntegrityError:
@@ -392,18 +398,17 @@ def main():
         try:
             if event.raw[0] == 4 or event.raw[0] == 5:
                 if event.attachments != {}:
-                    event.message_data = tuple(getAttachments(event.message_id))
+                    event.message_data = getAttachments(event)
                 else:
-                    event.message_data = (True, None, None)
-                if event.from_user:
-                    if event.raw[2] & 2:
-                        event.user_id = account_id
+                    event.message_data = True, None, None
+                if event.from_user and event.raw[2] & 2:
+                    event.user_id = account_id
                 elif event.from_group:
                     if event.from_me:
                         event.user_id = account_id
                     else:
                         event.user_id = event.peer_id
-                if event.message == "":
+                if not event.message:
                     event.message = None
                 events.append(event)
                 flag.set()
@@ -433,13 +438,11 @@ def showMessagesWithDeletedAttachments():
     for i in [[j[0] for j in fetch_attachments[i:i + 100]] for i in range(0, len(fetch_attachments), 100)]:
         messages_attachments.extend(tryAgainIfFailed(
             vk.messages.getById,
-            delay=1,
             message_ids=','.join(i))['items']
         )
     for i in [[j[0] for j in fetch_fwd[i:i + 100]] for i in range(0, len(fetch_fwd), 100)]:
         messages_fwd.extend(tryAgainIfFailed(
             vk.messages.getById,
-            delay=1,
             message_ids=','.join(i))['items']
         )
     c = 0
@@ -556,12 +559,39 @@ def attachmentsParse(urls):
     html += """</div>"""
     return html
 
-def getAttachments(message_id):
+def getAttachments(event):
+    message_id = event.message_id
+    fullLoadNeeded = event.raw[0] == 5 or 'fwd' in event.attachments
+    count = 0
+    if not fullLoadNeeded:
+        for i in range(1,11):
+            if f'attach{i}_type' in event.attachments:
+                if event.attachments[f'attach{i}_type'] not in ('sticker', 'link'):
+                    fullLoadNeeded = True
+                    break
+            else:
+                count = i
+                break
+    if not fullLoadNeeded:
+        attachments = []
+        for i in range(1,count):
+            if f'attach{i}_type' in event.attachments:
+                if event.attachments[f'attach{i}_type'] == 'sticker':
+                    attachments.append({'type':'sticker','sticker':{'images':[{'height':64,'url':f'https://vk.com/sticker/1-{event.attachments[f"attach{i}"]}-64'}]}})
+                else:
+                    attachments.append({'type':'link','link':{'title':event.attachments[f'attach{i}_title'],'url':event.attachments[f'attach{i}_url']}})
+            else:
+                break
+        return False, json.dumps(attachments, ensure_ascii=False,), None
     mes = tryAgainIfFailed(
         vk.messages.getById,
-        delay=1,
         message_ids=message_id
-    )['items'][0]
+    )['items']
+    if not len(mes):
+        logger.info("Не удалось запросить вложения для сообщения, message_id = %i.", event.message_id)
+        return False, "[]", "[]"
+    else:
+        mes = mes[0]
     hasUpdateTime = 'update_time' in mes
     fwd_messages = None
     if 'reply_message' in mes:
@@ -578,16 +608,13 @@ def parseUrls(attachments):
     urls = []
     for i in attachments:
         if i['type'] == 'photo':
-            availableSizes = []
+            maxHeight = 0
+            maxUrl = ""
             for j in i['photo']['sizes']:
-                availableSizes.append(j['type'])
-            for j in sizes:
-                try:
-                    realSizesIndex = availableSizes.index(j)
-                except ValueError:
-                    continue
-                break
-            urls.append(i['photo']['sizes'][realSizesIndex]['url'])
+                if j['height'] > maxHeight:
+                    maxHeight = j['height']
+                    maxUrl = j['url']
+            urls.append(maxUrl)
         elif i['type'] == 'audio_message':
             urls.append(i['audio_message']['link_mp3'])
         elif i['type'] == 'sticker':
@@ -613,10 +640,8 @@ def parseUrls(attachments):
         elif i['type'] == 'doc':
             urls.append(f"Документ: {i['doc']['title']}@{i['doc']['url']}")
         else:
-            try:
+            if 'url' in i[i['type']]:
                 urls.append(i[i['type']]['url'])
-            except KeyError:
-                pass
     if urls == []:
         return None
     return urls
@@ -629,7 +654,6 @@ def getPeerName(id):
             try:
                 name = tryAgainIfFailed(
                     vk.messages.getChat,
-                    delay=1,
                     chat_id=id-2000000000
                 )['title']
                 cursor.execute("""INSERT INTO chats_cache (chat_id,chat_name) VALUES (?,?)""", (id, name,))
@@ -644,7 +668,6 @@ def getPeerName(id):
         if fetch is None:
             name = tryAgainIfFailed(
                 vk.groups.getById,
-                delay=1,
                 group_id=-id
             )[0]['name']
             cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id, name,))
@@ -657,7 +680,6 @@ def getPeerName(id):
         if fetch is None:
             name = tryAgainIfFailed(
                 vk.users.get,
-                delay=1,
                 user_id=id
             )[0]
             name = f"{name['first_name']} {name['last_name']}"
@@ -709,8 +731,7 @@ def fwdParse(fwd):
             html += fwdParse([i['reply_message']])
         html += """        </td>
                             </tr>
-                        """
-        html += """
+                        
                             <tr>
                                 <td>
                                     {}
@@ -940,7 +961,6 @@ if not config['disableMessagesLogging']:
     </body>
 </html>"""
     offset = template.index("""        </table>""")
-sizes = ('w', 'z', 'y', 'r', 'q', 'p', 'o', 'x', 'm', 's')
 events = []
 flag = threading.Event()
 
