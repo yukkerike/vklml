@@ -525,13 +525,13 @@ def attachmentsParse(urls):
                         """
     for i in urls:
         urlSplit = i.split(',')
-        if i.find('sticker') != -1:
+        if i.find('vk.com/sticker/') != -1:
             html += """    <img src="{}" />
                         """.format(i)
-        elif i.find('jpg') != -1 and i.find(',') == -1:
+        elif i.find('.jpg') != -1 and i.find(',') == -1:
             html += """    <img src="{}" />
                         """.format(i)
-        elif i.find('mp3') != -1:
+        elif i.find('.mp3') != -1:
             html += """    <audio src="{}" controls></audio>
                         """.format(i)
         elif i.find('https://vk.com/audio') != -1:
@@ -579,7 +579,11 @@ def getAttachments(event):
                 if event.attachments[f'attach{i}_type'] == 'sticker':
                     attachments.append({'type':'sticker','sticker':{'images':[{'height':64,'url':f'https://vk.com/sticker/1-{event.attachments[f"attach{i}"]}-64'}]}})
                 else:
-                    attachments.append({'type':'link','link':{'title':event.attachments[f'attach{i}_title'],'url':event.attachments[f'attach{i}_url']}})
+                    if f'attach{i}_title' in event.attachments:
+                        title = event.attachments[f'attach{i}_title']
+                    else:
+                        title = event.attachments[f'attach{i}_url']
+                    attachments.append({'type':'link','link':{'title':title,'url':event.attachments[f'attach{i}_url']}})
             else:
                 break
         return False, json.dumps(attachments, ensure_ascii=False,), None
