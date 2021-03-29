@@ -44,8 +44,6 @@ defaultConfig = {
     "preloadMessages": False,
     "customActions": False,
     "disableMessagesLogging": False,
-    "placeTokenInGetVideo": True,
-    "tokenToPlaceInGetVideo": "",
     'enableFlaskWebServer': False,
     'useAuth': False,
     'users': {
@@ -146,7 +144,7 @@ def tryAgainIfFailed(func, *args, maxRetries=5, **kwargs):
                 maxRetries -= 1
             continue
 
-vk_session = vk_api.VkApi(token=config['ACCESS_TOKEN'])
+vk_session = vk_api.VkApi(token=config['ACCESS_TOKEN'],api_version='5.130')
 longpoll = VkLongPoll(vk_session, wait=60, mode=2)
 vk = vk_session.get_api()
 account_id = tryAgainIfFailed(vk.users.get)[0]['id']
@@ -177,36 +175,41 @@ if not config['disableMessagesLogging']:
     <html>
         <head>
             <meta charset="utf-8">
+            <style>
+                html,body,iframe{
+                    width: 100%;
+                    height: 100%;
+                }
+            </style>
         </head>
         <body>
-            <input id="videos"></input>
-            <input type="submit" id="submit" value="Отправить">
-            <div><p>Если видео не проигрывается, прямую ссылку можно получить через api:</p></div>
-            <div style="position:relative;padding-top:56.25%;"></div>
+            <p>Если видео не проигрывается, прямую ссылку можно получить через api:</p>
             <script>
-                let ACCESS_TOKEN = '{}';
-                document.getElementById('submit').onclick = function() {{
+                function embedLink(id) {
                     var link = document.createElement('a');
-                    link.href = "https://vk.com/dev/video.get?params[videos]=0_0," + videos.value + "&params[count]=1&params[offset]=1";
-                    link.innerText = videos.value;
-                    document.getElementById('submit').disabled = true;
-                    document.getElementsByTagName("div")[0].appendChild(link);
-                    var script = document.createElement('SCRIPT');
-                    script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + videos.value + "&callback=callbackFunc";
-                    document.getElementsByTagName("head")[0].appendChild(script);
-                }}
-                function callbackFunc(result) {{
+                    link.href = "https://vk.com/dev/video.get?params[videos]=0_0," + id + "&params[count]=1&params[offset]=1";
+                    link.innerText = id;
+                    link.setAttribute('target', '_blank')
+                    document.getElementsByTagName("body")[0].appendChild(link);
+                }
+                function embedPlayer(link) {
                     var frame = document.createElement('iframe');
-                    frame.src = result.response.items[0]["player"];
-                    frame.style = "position:absolute;top:0;left:0;width:100%;height:100%;";
-                    document.getElementsByTagName("div")[1].appendChild(frame);
-                }}
-                let videos = document.getElementById('videos');
-                videos.value = document.location.search.slice(1);
-                if (videos.value != "") document.getElementById('submit').click()
+                    frame.src = link;
+                    frame.style = "width:100%;height:100%;";
+                    frame.setAttribute('allowFullScreen', '')
+                    document.getElementsByTagName("body")[0].appendChild(frame);
+                }
+                function splitArgs(){
+                    var args = document.location.search;
+                    var lastAmpersand = args.lastIndexOf('&');
+                    return [args.slice(1, lastAmpersand), args.slice(lastAmpersand + 1)];
+                }
+                var args = splitArgs();
+                embedLink(args[1]);
+                embedPlayer(args[0]);
             </script>
         </body>
-    </html>""".format(config['tokenToPlaceInGetVideo'] if config['tokenToPlaceInGetVideo'] != "" else config['ACCESS_TOKEN'] if config['placeTokenInGetVideo'] else ""))
+    </html>""")
     f.close()
     if not os.path.exists(
         os.path.join(
@@ -545,12 +548,12 @@ def attachmentsParse(urls):
                                 {}
                             </a>
                         """.format(i[1], i[0])
-        elif len(urlSplit) == 2:
+        elif len(urlSplit) == 3:
             html += """    <a href="{}" target="_blank">
                                 Видео
                                 <img src="{}"/>
                             </a>
-                        """.format("./vkGetVideoLink.html?" + urlSplit[1], urlSplit[0])
+                        """.format(f"./vkGetVideoLink.html?{urlSplit[1]}&{urlSplit[2]}", urlSplit[0])
         else:
             html += """    <a href="{0}" target="_blank">
                                 {0}
@@ -628,7 +631,7 @@ def parseUrls(attachments):
         elif i['type'] == 'link':
             urls.append(f"Ссылка: {i['link']['title']}@{i['link']['url']}")
         elif i['type'] == 'video':
-            urls.append(f"{i['video']['photo_320']},{i['video']['owner_id']}_{i['video']['id']}_{i['video']['access_key']}")
+            urls.append(f"{i['video']['image'][0]['url']},{i['video']['player']},{i['video']['owner_id']}_{i['video']['id']}_{i['video']['access_key']}")
         elif i['type'] == 'wall':
             urls.append(f"Пост: {i['wall']['text'][:25]}@https://vk.com/wall{i['wall']['from_id']}_{i['wall']['id']}")
         elif i['type'] == 'wall_reply':
