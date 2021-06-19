@@ -424,10 +424,10 @@ def main():
             logger.exception("Ошибка при добавлении события в очередь. \n %s", vars(event))
 
 def showMessagesWithDeletedAttachments():
-    cursor.execute("""SELECT * FROM messages WHERE attachments IS NOT NULL""")
-    fetch_attachments = [[str(i[2]), json.loads(i[4])] for i in cursor.fetchall()]
-    cursor.execute("""SELECT * FROM messages WHERE fwd_messages IS NOT NULL""")
-    fetch_fwd = [[str(i[2]), json.loads(i[6])] for i in cursor.fetchall()]
+    cursor.execute("""SELECT message_id, attachments FROM messages WHERE attachments IS NOT NULL""")
+    fetch_attachments = [[str(i[0]), json.loads(i[1])] for i in cursor.fetchall()]
+    cursor.execute("""SELECT message_id, fwd_messages FROM messages WHERE fwd_messages IS NOT NULL""")
+    fetch_fwd = [[str(i[0]), json.loads(i[1])] for i in cursor.fetchall()]
     c = 0
     for i in range(len(fetch_attachments)):
         for j in fetch_attachments[i - c][1]:
@@ -655,7 +655,7 @@ def parseUrls(attachments):
 
 def getPeerName(id):
     if id > 2000000000:
-        cursor.execute("""SELECT * FROM chats_cache WHERE chat_id = ?""", (id,))
+        cursor.execute("""SELECT chat_name FROM chats_cache WHERE chat_id = ?""", (id,))
         fetch = cursor.fetchone()
         if fetch is None:
             try:
@@ -668,9 +668,9 @@ def getPeerName(id):
             except Warning:
                 name = "Секретный чат, используйте токен другого приложения"
         else:
-            name = fetch[1]
+            name = fetch[0]
     elif id < 0:
-        cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
+        cursor.execute("""SELECT user_name FROM users_cache WHERE user_id = ?""", (id,))
         fetch = cursor.fetchone()
         if fetch is None:
             name = tryAgainIfFailed(
@@ -680,9 +680,9 @@ def getPeerName(id):
             cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id, name,))
             conn.commit()
         else:
-            name = fetch[1]
+            name = fetch[0]
     else:
-        cursor.execute("""SELECT * FROM users_cache WHERE user_id = ?""", (id,))
+        cursor.execute("""SELECT user_name FROM users_cache WHERE user_id = ?""", (id,))
         fetch = cursor.fetchone()
         if fetch is None:
             name = tryAgainIfFailed(
@@ -693,7 +693,7 @@ def getPeerName(id):
             cursor.execute("""INSERT INTO users_cache (user_id,user_name) VALUES (?,?)""", (id, name,))
             conn.commit()
         else:
-            name = fetch[1]
+            name = fetch[0]
     return name
 
 def fwdParse(fwd):
