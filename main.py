@@ -564,31 +564,27 @@ def attachmentsParse(urls):
 
 def getAttachments(event):
     message_id = event.message_id
-    fullLoadNeeded = event.raw[0] == 5 or 'fwd' in event.attachments
+    fullLoadUnNeeded = not (event.raw[0] == 5 or 'fwd' in event.attachments)
     count = 0
-    if not fullLoadNeeded:
+    if fullLoadUnNeeded:
         for i in range(1,11):
             if f'attach{i}_type' in event.attachments:
                 if event.attachments[f'attach{i}_type'] not in ('sticker', 'link'):
-                    fullLoadNeeded = True
-                    break
+                    fullLoadUnNeeded = False
             else:
                 count = i
                 break
-    if not fullLoadNeeded:
+    if fullLoadUnNeeded:
         attachments = []
         for i in range(1,count):
-            if f'attach{i}_type' in event.attachments:
-                if event.attachments[f'attach{i}_type'] == 'sticker':
-                    attachments.append({'type':'sticker','sticker':{'images':[{'height':64,'url':f'https://vk.com/sticker/1-{event.attachments[f"attach{i}"]}-64'}]}})
-                else:
-                    if f'attach{i}_title' in event.attachments:
-                        title = event.attachments[f'attach{i}_title']
-                    else:
-                        title = event.attachments[f'attach{i}_url']
-                    attachments.append({'type':'link','link':{'title':title,'url':event.attachments[f'attach{i}_url']}})
+            if event.attachments[f'attach{i}_type'] == 'sticker':
+                attachments.append({'type':'sticker','sticker':{'images':[{'height':64,'url':f'https://vk.com/sticker/1-{event.attachments[f"attach{i}"]}-64'}]}})
             else:
-                break
+                if f'attach{i}_title' in event.attachments:
+                    title = event.attachments[f'attach{i}_title']
+                else:
+                    title = event.attachments[f'attach{i}_url']
+                attachments.append({'type':'link','link':{'title':title,'url':event.attachments[f'attach{i}_url']}})
         return False, json.dumps(attachments, ensure_ascii=False,), None
     mes = tryAgainIfFailed(
         vk.messages.getById,

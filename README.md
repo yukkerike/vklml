@@ -33,7 +33,7 @@
 
     python3 main.py ACCESS_TOKEN
 
-Получить токен можно тут: <https://oauth.vk.com/authorize?client_id=6146827&scope=69632&redirect_uri=https://oauth.vk.com/blank.html&display=page&response_type=token&revoke=1>
+Получить токен можно тут: <https://oauth.vk.com/authorize?client_id=2685278&scope=69632&redirect_uri=https://oauth.vk.com/blank.html&display=page&response_type=token&revoke=1>
 
 ## Советы по настройке
 
