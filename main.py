@@ -123,7 +123,8 @@ def tryAgainIfFailed(func, *args, maxRetries=5, **kwargs):
         try:
             return func(*args, **kwargs)
         except vk_api.exceptions.ApiError:
-            if str(sys.exc_info()[1]).find("User authorization failed") != -1:
+            err = str(sys.exc_info()[1])
+            if err.find("User authorization failed") != -1 or err.find("invalid access_token") != -1:
                 logger.warning("Токен недействителен.")
                 interrupt_handler(0, None)
             raise Warning
