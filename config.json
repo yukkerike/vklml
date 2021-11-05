@@ -5,6 +5,8 @@
     "preloadMessages": false,
     "customActions": false,
     "disableMessagesLogging": false,
+    "placeTokenInGetVideo": true,
+    "tokenToPlaceInGetVideo": "",
     "enableFlaskWebServer": false,
     "useAuth": false,
     "users": {

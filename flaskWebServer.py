@@ -155,5 +155,65 @@ def staticfileslist():
         ))
     return make_response('Static folder not found')
 
+@app.route("/vkGetVideoLink.html")
+def video():
+    if config['useAuth']:
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return Response(
+            'Необходимо залогиниться', 401,
+            {'WWW-Authenticate': 'Basic realm="Login Required"'})
+        return """<!DOCTYPE html>
+    <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{
+                    display: flex;
+                    flex-direction: column;
+                }}
+                #video {{
+                    flex: 1;
+                }}
+                iframe, html, body {{
+                    width: 100%;
+                    height: 100%;
+                }}
+            </style>
+        </head>
+        <body>
+            <form>
+                <input id="videos">
+                <input type="submit" value="Отправить">
+            </form>
+            <div>
+                <p>Если видео не проигрывается, прямую ссылку можно получить через api:</p></div>
+                <div id="video"></div>
+                <script>                
+                    var ACCESS_TOKEN = '{}';
+                    var form = document.querySelector('form');
+                    form.onsubmit = function(e) {{
+                        e.preventDefault();
+                        var link = document.createElement('a');
+                        link.href = "https://vk.com/dev/video.get?params[videos]=0_0," + form[0].value + "&params[count]=1&params[offset]=1";
+                        link.innerText = form[0].value;
+                        form[1].disabled = true;
+                        document.querySelector("div").appendChild(link);
+                        var script = document.createElement('SCRIPT');
+                        script.src = "https://api.vk.com/method/video.get?v=5.101&access_token=" + ACCESS_TOKEN + "&videos=" + form[0].value + "&callback=callbackFunc";
+                        document.querySelector("head").appendChild(script);
+                    }}
+                    function callbackFunc(result) {{
+                        var frame = document.createElement('iframe');
+                        frame.src = result.response.items[0]["player"];
+                        document.getElementById("video").appendChild(frame);
+                    }}
+                    form[0].value = document.location.search.slice(1);
+                    if (form[0].value != "") form[1].click();
+                    </script>
+        </body>
+    </html>""".format(config['tokenToPlaceInGetVideo'] if config['tokenToPlaceInGetVideo'] != "" else config['ACCESS_TOKEN'] if auth.username == firstUser else "")
+    return send_from_directory("mesAct", 'vkGetVideoLink.html')
+
 if __name__ == "__main__":
     app.run(port=8000, host='0.0.0.0')
