@@ -147,7 +147,7 @@ def tryAgainIfFailed(func, *args, maxRetries=5, **kwargs):
                 maxRetries -= 1
             continue
 
-vk_session = vk_api.VkApi(token=config['ACCESS_TOKEN'],api_version='5.130')
+vk_session = vk_api.VkApi(token=config['ACCESS_TOKEN'],api_version='5.131')
 longpoll = VkLongPoll(vk_session, wait=60, mode=2)
 vk = vk_session.get_api()
 account_id = tryAgainIfFailed(vk.users.get)[0]['id']
@@ -200,7 +200,7 @@ if not config['disableMessagesLogging']:
             <div>
                 <p>Если видео не проигрывается, прямую ссылку можно получить через api:</p></div>
                 <div id="video"></div>
-                <script>                
+                <script>
                     var ACCESS_TOKEN = '{}';
                     var form = document.querySelector('form');
                     form.onsubmit = function(e) {{
@@ -603,17 +603,23 @@ def getAttachments(event):
     mes = tryAgainIfFailed(
         vk.messages.getById,
         message_ids=message_id
-    )['items']
-    if not len(mes):
-        logger.info("Не удалось запросить вложения для сообщения, message_id = %i.", event.message_id)
-        return False, "[]", "[]"
+    )
+    if mes["count"] == 0:
+        time.sleep(0.3)
+        mes = tryAgainIfFailed(
+            vk.messages.getById,
+            message_ids=message_id
+        )
+        if mes["count"] == 0:
+            logger.info("Не удалось запросить вложения для сообщения, message_id = %i. \n%s\n%s", event.message_id, vars(event), mes)
+            return False, "[]", "[]"
     else:
-        mes = mes[0]
+        mes = mes["items"][0]
     hasUpdateTime = 'update_time' in mes
     fwd_messages = None
     if 'reply_message' in mes:
         fwd_messages = json.dumps([mes['reply_message']], ensure_ascii=False,)
-    elif mes['fwd_messages'] != []:
+    elif 'fwd_messages' in mes and mes['fwd_messages'] != []:
         fwd_messages = json.dumps(mes['fwd_messages'], ensure_ascii=False,)
     if mes['attachments'] == []:
         attachments = None
