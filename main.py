@@ -621,7 +621,7 @@ def getAttachments(event):
         fwd_messages = json.dumps([mes['reply_message']], ensure_ascii=False,)
     elif 'fwd_messages' in mes and mes['fwd_messages'] != []:
         fwd_messages = json.dumps(mes['fwd_messages'], ensure_ascii=False,)
-    if mes['attachments'] == []:
+    if not 'attachments' in mes or mes['attachments'] == []:
         attachments = None
     else:
         attachments = json.dumps(mes['attachments'], ensure_ascii=False,)
