@@ -545,7 +545,7 @@ def attachmentsParse(urls):
         if i.find('vk.com/sticker/') != -1:
             html += """    <img src="{}" />
                         """.format(i)
-        elif i.find('.jpg') != -1 and i.find(',') == -1:
+        elif i.find('.jpg') != -1:
             html += """    <img src="{}" />
                         """.format(i)
         elif i.find('.mp3') != -1:
